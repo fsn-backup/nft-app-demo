@@ -6,12 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "export": "next export"
   },
   "dependencies": {
+    "ether.js": "^1.0.0",
     "next": "^13.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "userop": "^0.3.2",
     "viem": "~0.3.36",
     "wagmi": "^1.0.6"
   },

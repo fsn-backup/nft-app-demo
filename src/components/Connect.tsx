@@ -11,24 +11,28 @@ export function Connect() {
 
   return (
     <div>
-      <div>
+      <div className="button-group">
         {isConnected && (
-          <button onClick={() => disconnect()}>
+          <button className="disconnect-button" onClick={() => disconnect()}>
             Disconnect from {connector?.name}
           </button>
         )}
-
+  
         {connectors
           .filter((x) => x.ready && x.id !== connector?.id)
           .map((x) => (
-            <button key={x.id} onClick={() => connect({ connector: x })}>
+            <button
+              className="connect-button"
+              key={x.id}
+              onClick={() => connect({ connector: x })}
+            >
               {x.name}
               {isLoading && x.id === pendingConnector?.id && ' (connecting)'}
             </button>
           ))}
       </div>
-
-      {error && <div>{(error as BaseError).shortMessage}</div>}
+  
+      {error && <div className="ErrorMessage">{(error as BaseError).shortMessage}</div>}
     </div>
-  )
+  );
 }

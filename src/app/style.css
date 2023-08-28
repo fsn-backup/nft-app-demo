@@ -1,0 +1,223 @@
+/* General Page Layout */
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: #f4f4f4; /* Neutral background color */
+  color: #333333; /* Text Color */
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+.main-wrapper {
+  background: #ffffff; /* Container Background */
+  padding: 1.5em;
+  border-radius: 10px;
+  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1);
+  width: 75%;
+  max-width: 800px;
+  margin: 1em auto;
+}
+
+/* Sections and Components */
+.wallet-section,
+.account-info,
+.message-sign,
+.mint-section {
+  margin-bottom: 1em;
+}
+
+.mint-section {
+  text-align: center;
+  padding: 1.5em;
+  background: #f0f7ff; /* Mint Section Background */
+  border-radius: 10px;
+}
+
+.NetworkSwitcher,
+.Account,
+.CombinedAccount,
+.SignAAMessage,
+.Mint {
+  padding: 20px;
+  background-color: #f0f7ff; /* Network Switcher and Account Background */
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+/* Text */
+h1,
+h2 {
+  color: #0077a3; /* Headers */
+  margin-bottom: 0.5em;
+  font-size: 1.5em;
+}
+
+hr {
+  border: 0.5px solid #cccccc;
+  margin: 10px 0;
+}
+
+/* Buttons for Wallet Connection */
+.connect-button,
+.disconnect-button {
+  color: #ffffff; /* Button Text Color */
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.connect-button {
+  background: #0077a3; /* Connect Button */
+}
+
+.disconnect-button {
+  background: #e44d48; /* Disconnect Button */
+}
+
+.connect-button:hover,
+.disconnect-button:hover {
+  background: #005974; /* Button Hover */
+}
+
+.connect-button:disabled,
+.disconnect-button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Links */
+a {
+  color: #0077a3; /* Links */
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+a:hover {
+  border-bottom: 1px solid #0077a3; /* Hover */
+}
+
+/* Feedback and Error */
+.ErrorMessage,
+.SuccessMessage,
+.LoadingMessage {
+  font-weight: bold;
+}
+
+.ErrorMessage {
+  color: #e44d48; /* Error */
+}
+
+.SuccessMessage {
+  color: #4caf50; /* Success */
+}
+
+.LoadingMessage {
+  color: #ff9800; /* Loading */
+}
+
+/* Font Awesome icons */
+.fas {
+  margin-right: 8px;
+}
+
+/* Styles for Sign Message Section */
+.sign-message-section {
+  padding: 1em;
+  background-color: #f0f7ff; /* Sign Message Background */
+  border-radius: 8px;
+  margin-bottom: 1em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sign-button {
+  background: #0077a3; /* Sign Button */
+  color: #ffffff;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sign-button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+.sign-button:hover {
+  background: #005974; /* Hover */
+}
+
+.already-signed-message {
+  font-weight: bold;
+  color: #4caf50; /* Already Signed Message */
+}
+
+/* Styles for Account Information */
+.account-info-section {
+  padding: 1em;
+  background-color: #f0f7ff; /* Account Info Background */
+  border-radius: 8px;
+  margin-bottom: 1em;
+}
+
+.account-info h4 {
+  color: #0077a3; /* Account Info Header */
+  margin-bottom: 0.3em;
+}
+
+.Account {
+  color: #333333; /* Account Text Color */
+}
+
+hr {
+  border: 0.5px solid #cccccc;
+  margin: 1em 0;
+}
+
+.mint-button {
+  background: #0077a3;
+  color: #ffffff;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin: 0.5em;
+}
+
+.mint-button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+.mint-button:hover {
+  background: #005974;
+}
+
+.transaction-details {
+  margin-top: 1em;
+}
+
+.transaction-details div {
+  margin-bottom: 0.5em;
+}
+
+.mint-title {
+  text-align: left; /* 左对齐标题 */
+}
+
+.mint-content {
+  text-align: center; /* 内容居中 */
+}

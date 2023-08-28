@@ -1,6 +1,7 @@
 'use client'
 
 import { useNetwork, useSwitchNetwork } from 'wagmi'
+import '../app/style.css';
 
 export function NetworkSwitcher() {
   const { chain } = useNetwork()
@@ -8,7 +9,7 @@ export function NetworkSwitcher() {
     useSwitchNetwork()
 
   return (
-    <div>
+    <div className="NetworkSwitcher">
       <div>
         Connected to {chain?.name ?? chain?.id}
         {chain?.unsupported && ' (unsupported)'}
