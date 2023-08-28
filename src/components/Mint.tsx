@@ -13,12 +13,7 @@ export function Mint() {
   const [senderValue, setSenderValue] = useState('');
   const [opHashValue, setOpHashValue] = useState('');
 
-  // useEffect(() => {
-  //   let privateKeyHex = localStorage.getItem('aa_privkey');
-  //   setIsDisable(privateKeyHex == null);
-  // }, []);
-
-  let bundlerUrl = "http://88.99.94.109:14337/1337"
+  let bundlerUrl = "https://https://test-bundler-gamewallet.fusionist.io//1337"
   const entryPoint = "0xba0917DF35Cf6c7aE1CABf5e7bED9a904F725318";
   const accountFactory = "0x6218d8C39208C408d096Ac5F3BaC3472e6381526";
   const paymaster = "0x1a256A0221b030A8A50Cb18966Ebdc4325a92D7F"
