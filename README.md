@@ -14,3 +14,4 @@ To learn more about [Next.js](https://nextjs.org) or [wagmi](https://wagmi.sh), 
 - [wagmi Examples](https://wagmi.sh/examples/connect-wallet) – a suite of simple examples using wagmi.
 - [Next.js Documentation](https://nextjs.org/docs) learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
