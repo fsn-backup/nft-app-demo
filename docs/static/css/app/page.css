@@ -1,0 +1,241 @@
+/*!*************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[5].oneOf[12].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[5].oneOf[12].use[3]!./src/app/style.css ***!
+  \*************************************************************************************************************************************************************************************************************************************************************/
+/* General Page Layout */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(180deg, #f0f0f0, #dcdcdc) fixed;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  font-size: 16px; /* Increased font size for better readability */
+}
+
+.main-wrapper {
+  background: #fff;
+  padding: 2em;
+  border-radius: 16px; /* Increased border radius */
+  box-shadow: 0px 4px 24px rgba(0, 0, 0, 0.1); /* Softer shadow */
+  max-width: 90%;
+  margin: 2em auto;
+  min-width: 800px;
+}
+
+/* Sections and Components */
+.wallet-section,
+.account-info,
+.message-sign,
+.mint-section {
+  margin-bottom: 2em; /* Increased margin */
+  text-align: center;
+}
+
+.mint-section,
+.NetworkSwitcher,
+.Account,
+.CombinedAccount,
+.SignAAMessage,
+.Mint {
+  padding: 2em; /* Increased padding */
+  background: linear-gradient(180deg, #e0f4ff, #b8d8ff); /* Lighter gradient */
+  border-radius: 16px; /* Increased border radius */
+  margin: 24px 0;
+}
+
+/* Text */
+h1,
+h2 {
+  color: #00597d; /* Darker color for better contrast */
+  margin-bottom: 0.6em;
+  font-size: 1.8em; /* Increased font size */
+}
+
+hr {
+  border: 0.5px solid #bbbbbb; /* Lighter color */
+  margin: 20px 0; /* Increased margin */
+}
+
+/* Buttons for Wallet Connection */
+.connect-button,
+.disconnect-button,
+.sign-button,
+.mint-button,
+.network-button {
+  color: #ffffff;
+  padding: 12px 24px; /* Increased padding */
+  border: none;
+  border-radius: 12px; /* Increased border radius */
+  cursor: pointer;
+  transition: background 0.3s ease; /* New: transition effect */
+}
+
+.connect-button {
+  background: #0075a0;
+}
+
+.disconnect-button {
+  background: #d93e35;
+}
+
+.connect-button:hover,
+.disconnect-button:hover,
+.sign-button:hover,
+.mint-button:hover,
+.network-button:hover {
+  background: #00546a; /* Darker shade for hover */
+}
+
+.connect-button:disabled,
+.disconnect-button:disabled,
+.sign-button:disabled,
+.mint-button:disabled,
+.network-button:disabled {
+  background: #cdcdcd;
+  cursor: not-allowed;
+}
+
+/* Links */
+a {
+  color: #0080a4;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+a:hover {
+  border-bottom: 1px solid #0080a4;
+}
+
+/* Feedback and Error */
+.ErrorMessage,
+.SuccessMessage,
+.LoadingMessage,
+.PromptMessage,
+.ConfirmationMessage,
+.ErrorNotification,
+.ProcessingMessage {
+  font-weight: bold;
+  padding: 10px;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+
+.ErrorMessage {
+  color: #e64f49;
+}
+
+.SuccessMessage,
+.already-signed-message {
+  color: #4db052;
+}
+
+.LoadingMessage {
+  color: #ffa000;
+}
+
+.PromptMessage {
+  color: #333;
+}
+
+.ConfirmationMessage {
+  color: #006500;
+}
+
+.ErrorNotification {
+  color: #9a0000;
+}
+
+.ProcessingMessage {
+  color: #ff6700;
+}
+
+/* Font Awesome icons */
+.fas {
+  margin-right: 8px;
+}
+
+/* Styles for Sign Message Section */
+.sign-message-section,
+.account-info-section {
+  padding: 1em;
+  background-color: #f1f8ff;
+  border-radius: 8px;
+  margin-bottom: 1em;
+}
+
+.sign-button {
+  background: #0080a4;
+}
+
+.already-signed-message {
+  font-weight: bold;
+  color: #4db052;
+}
+
+/* Styles for Account Information */
+.account-info-section {
+  padding: 1em;
+  background-color: #f1f8ff;
+  border-radius: 8px;
+  margin-bottom: 1em;
+}
+
+.account-info h4,
+.Account {
+  color: #0080a4;
+}
+
+.Account {
+  color: #333;
+}
+
+.mint-button {
+  background: #0080a4;
+}
+
+.transaction-details {
+  margin-top: 1em;
+}
+
+.transaction-details div {
+  margin-bottom: 0.5em;
+}
+
+.mint-title {
+  text-align: center;
+}
+
+.mint-content {
+  text-align: center;
+}
+
+/* Network Switch Button */
+.network-button {
+  background-color: #0080a4;
+}
+
+.mint-success-data {
+  text-align: left;
+}
+
+.mint-success-data-title {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.mint-success-data-content {
+  display: inline;
+  margin-left: 10px;
+}
+
+.mint-section,
+.sign-message-section,
+.account-info-section,
+.NetworkSwitcher {
+  background: linear-gradient(180deg, #e0f4ff, #b8d8ff);
+}
+

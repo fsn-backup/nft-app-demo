@@ -1,35 +1,35 @@
-'use client'
+"use client";
 
-import { useNetwork, useSwitchNetwork } from 'wagmi'
-import '../app/style.css';
+import { useNetwork, useSwitchNetwork } from "wagmi";
+import "../app/style.css";
 
 export function NetworkSwitcher() {
-  const { chain } = useNetwork()
+  const { chain } = useNetwork();
   const { chains, error, isLoading, pendingChainId, switchNetwork } =
-    useSwitchNetwork()
+    useSwitchNetwork();
 
   return (
     <div className="NetworkSwitcher">
       <div>
         Connected to {chain?.name ?? chain?.id}
-        {chain?.unsupported && ' (unsupported)'}
+        {chain?.unsupported && " (unsupported)"}
       </div>
       <br />
       {switchNetwork && (
         <div>
-          Switch to:{' '}
+          Switch to:{" "}
           {chains.map((x) =>
             x.id === chain?.id ? null : (
               <button key={x.id} onClick={() => switchNetwork(x.id)}>
                 {x.name}
-                {isLoading && x.id === pendingChainId && ' (switching)'}
+                {isLoading && x.id === pendingChainId && " (switching)"}
               </button>
-            ),
+            )
           )}
         </div>
       )}
 
       <div>{error?.message}</div>
     </div>
-  )
+  );
 }

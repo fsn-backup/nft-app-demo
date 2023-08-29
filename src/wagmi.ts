@@ -1,4 +1,4 @@
-import { configureChains, createConfig } from 'wagmi'
+import { configureChains, createConfig, createStorage } from 'wagmi'
 import { goerli, mainnet } from 'wagmi/chains'
 import { CoinbaseWalletConnector } from 'wagmi/connectors/coinbaseWallet'
 import { InjectedConnector } from 'wagmi/connectors/injected'
@@ -18,18 +18,18 @@ export const opendu = {
     symbol: 'ACE',
   },
   rpcUrls: {
-    public: { http: ['http://88.99.94.109:3334/'] },
-    default: { http: ['http://88.99.94.109:3334/'] },
+    public: { http: ['https://rpc-l2-op-endurance-testnet1.fusionist.io/'] },
+    default: { http: ['https://rpc-l2-op-endurance-testnet1.fusionist.io/'] },
   },
   blockExplorers: {
-    etherscan: { name: 'OpEnduExplorer', url: 'http://88.99.94.109:4100/' },
-    default: { name: 'OpEnduExplorer', url: 'http://88.99.94.109:4100/' },
+    etherscan: { name: 'OpEnduExplorer', url: 'https://explorer-l2-op-endurance-testnet1.fusionist.io/' },
+    default: { name: 'OpEnduExplorer', url: 'https://explorer-l2-op-endurance-testnet1.fusionist.io/' },
   },
   testnet: true
 } as const satisfies Chain;
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [mainnet,opendu],
+  [mainnet, opendu],
   [
     publicProvider(),
   ],
@@ -55,4 +55,5 @@ export const config = createConfig({
   ],
   publicClient,
   webSocketPublicClient,
+  storage: createStorage({ storage: window.localStorage }),
 })
