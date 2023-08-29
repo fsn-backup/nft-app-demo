@@ -45,6 +45,7 @@ export function AccountInfo(props) {
                 <a
                   href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/address/${props.aaAddress}`}
                   target="_blank"
+                  rel="noopener noreferrer"
                 >
                   View on Explorer
                 </a>

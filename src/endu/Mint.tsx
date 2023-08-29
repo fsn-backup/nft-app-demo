@@ -46,10 +46,11 @@ export function Mint(props) {
             <div className="mint-success-data-title">Transaction Hash</div>
             <div className="mint-success-data-content">
               {props.opData.txHash}
-              <br/>
+              <br />
               <a
                 href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/tx/${props.opData.txHash}`}
                 target="_blank"
+                rel="noopener noreferrer"
               >
                 View on Etherscan
               </a>

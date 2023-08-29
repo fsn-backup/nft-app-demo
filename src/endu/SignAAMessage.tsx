@@ -23,8 +23,8 @@ export function SignAAMessage(props) {
 
       {props.privKey && (
         <div className="ConfirmationMessage">
-        Success: An Abstract Account has been created with this wallet.
-      </div>
+          Success: An Abstract Account has been created with this wallet.
+        </div>
       )}
     </div>
   );
