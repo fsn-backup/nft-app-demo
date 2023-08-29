@@ -55,5 +55,4 @@ export const config = createConfig({
   ],
   publicClient,
   webSocketPublicClient,
-  storage: createStorage({ storage: window.localStorage }),
 })
