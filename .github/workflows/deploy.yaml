@@ -1,0 +1,39 @@
+name: Auto Commit and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  auto_commit_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Check if user should deploy
+        id: check-user
+        run: |
+          # 获取提交者的用户名
+          PUSH_USER=$(jq -r '.pusher.name' "$GITHUB_EVENT_PATH")
+
+          # 判断是否是特定开发者并设置输出变量
+          if [ "$PUSH_USER" = "0ximDean" ]; then
+            echo "::set-output name=should_deploy::false"
+          else
+            echo "::set-output name=should_deploy::true"
+          fi
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+
+      - name: Create commit and deploy
+        if: steps.check-user.outputs.should_deploy == 'true'
+        run: |
+          # 在这里进行自动提交和部署的操作
+          echo "Auto commit by GitHub Action" >> example.txt
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -a -m "Automated commit by GitHub Action"
+          git push
