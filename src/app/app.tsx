@@ -21,12 +21,13 @@ export function App() {
   const nftAddress = "0xf578642ff303398103930832B779cD35891eBa35";
   const opEnduChainId = 6480001000;
 
-  const  storage = localStorage
+  const storage = localStorage;
   const [privKey, setPrivkey] = useState("");
   const [aaAddress, setAAAddress] = useState("");
   const [isIniting, setIsIniting] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [opData, setOpData] = useState(null);
+  const [showPrivKey, setShowPrivKey] = useState(false);
 
   let privKeyLocal = storage.getItem("aa_privkey");
   useEffect(() => {
@@ -232,6 +233,34 @@ export function App() {
                 />
               </div>
             </section>
+
+            <section className="mint-section">
+              <h2>Export AA Account Private Key</h2>
+              <div className="mint-content">
+                <button className="mint-button" type="submit" onClick={() => setShowPrivKey(true)}>
+                  Show Private Key
+                </button>
+                <button className="mint-button" type="submit" onClick={() => setShowPrivKey(false)}>
+                  Hide Private Key
+                </button>
+                <br/>
+                <br/>
+                {
+                  showPrivKey && !privKey && (
+                    <div className="privkey">
+                      <div className="privkey-content">Please sign a message first</div>
+                    </div>
+                  )
+                }
+                {showPrivKey && privKey && (
+                  <div className="privkey">
+                    <div className="privkey-title">Private Key:</div>
+                    <div className="privkey-content">{privKey}</div>
+                  </div>
+                )}
+              </div>
+            </section>
+
           </Connected>
         </main>
       </div>
