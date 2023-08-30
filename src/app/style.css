@@ -235,3 +235,8 @@ a:hover {
 .NetworkSwitcher {
   background: linear-gradient(180deg, #e0f4ff, #b8d8ff);
 }
+
+.nft {
+  color: red;
+  font-size: 200%;
+}

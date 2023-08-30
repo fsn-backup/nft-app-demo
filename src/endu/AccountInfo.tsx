@@ -37,9 +37,13 @@ export function AccountInfo(props) {
             <div className="Account">
               <p className="aa-address">Address: {props.aaAddress}</p>
               <p className="aa-balance">
-                {isSuccess && nftBalance
-                  ? `NFTs: ${nftBalance.toString()}`
-                  : null}
+                {isSuccess && nftBalance ? (
+                  <div>
+                    You have{" "}
+                    <span className="nft"> {nftBalance.toString()}</span> NFT
+                    now
+                  </div>
+                ) : null}
               </p>
               <p className="aa-explorer-link">
                 <a
