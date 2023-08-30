@@ -10,11 +10,12 @@ import { useSignMessage, useConfig } from "wagmi";
 import React, { useState, useEffect } from "react";
 import "./style.css";
 import * as ethers from "ethers";
-import { Client, Presets } from "userop";
+import { Client, Presets, BundlerJsonRpcProvider } from "userop";
 import EnduNFTData from "../endu/artifacts/EnduNFT.json";
 
 export function App() {
-  const bundlerUrl = "https://test-bundler-gamewallet.fusionist.io/1337";
+  let nodeRpcUrl = "https://rpc-l2-op-endurance-testnet1.fusionist.io/";
+  const bundlerUrl = "https://test-bundler-gamewallet.fusionist.io/";
   const entryPoint = "0xba0917DF35Cf6c7aE1CABf5e7bED9a904F725318";
   const accountFactory = "0x6218d8C39208C408d096Ac5F3BaC3472e6381526";
   const paymaster = "0x1a256A0221b030A8A50Cb18966Ebdc4325a92D7F";
@@ -98,15 +99,18 @@ export function App() {
         setIsIniting(true);
       }
       try {
-        const provider = new ethers.providers.JsonRpcProvider(bundlerUrl);
+        const provider = new BundlerJsonRpcProvider(nodeRpcUrl).setBundlerRpc(
+          bundlerUrl
+        );
         const wallet = new ethers.Wallet(privKey, provider);
         let simpleAccount = await Presets.Builder.SimpleAccount.init(
           wallet,
-          bundlerUrl,
+          nodeRpcUrl,
           {
             entryPoint: entryPoint,
             factory: accountFactory,
             salt: "0",
+            overrideBundlerRpc: bundlerUrl,
           }
         );
         const address = simpleAccount.getSender();
@@ -137,8 +141,9 @@ export function App() {
           false
         );
 
-        const client = await Client.init(bundlerUrl, {
+        const client = await Client.init(nodeRpcUrl, {
           entryPoint: entryPoint,
+          overrideBundlerRpc: bundlerUrl,
         });
 
         let abi = EnduNFTData.abi;
