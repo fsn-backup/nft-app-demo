@@ -4,7 +4,7 @@ import React from "react";
 
 export function Mint(props) {
   return (
-    <div className="Mint">
+    <div className="mint-section">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -46,7 +46,8 @@ export function Mint(props) {
             <div className="mint-success-data-title">Transaction Hash</div>
             <div className="mint-success-data-content">
               {props.opData.txHash}
-              <br /><br/>
+              <br />
+              <br />
               <a
                 href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/tx/${props.opData.txHash}`}
                 target="_blank"

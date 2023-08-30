@@ -10,31 +10,33 @@ export function NetworkSwitcher(props) {
 
   return (
     <div className="NetworkSwitcher">
-      {chain?.id === props.opEnduChainId ? (
+      {chain?.id === props.opEnduChainId && (
         <div className="ConfirmationMessage">
           Success: You are connected to the correct network.
         </div>
-      ) : (
-        <>
-          <div className="ErrorNotification">
-            Warning: You are not connected to the designated network. Please
-            switch for full functionality.
-          </div>
+      )}
 
-          <div>
-            Currently connected to: {chain?.name ?? chain?.id}
-            {chain?.unsupported && " (unsupported)"}
-          </div>
-          <br />
+      {chain?.id != props.opEnduChainId && (
+        <div className="ErrorNotification">
+          Warning: You are not connected to the designated network. Please
+          switch for full functionality.
+        </div>
+      )}
+      {
+        <>
           {switchNetwork && (
             <div>
-              Switch to:{" "}
+              Currently:{" "}
+              <span className="cname">{chain?.name ?? chain?.id}</span>
+              {chain?.unsupported && " (unsupported)"}
+              &nbsp; &nbsp; Switch to:{" "}
               {chains.map((x) =>
                 x.id === chain?.id ? null : (
                   <button
                     className="network-button"
                     key={x.id}
                     onClick={() => switchNetwork(x.id)}
+                    disabled={chain?.id == props.opEnduChainId}
                   >
                     {x.name}
                     {isLoading && x.id === pendingChainId && " (switching)"}
@@ -43,8 +45,13 @@ export function NetworkSwitcher(props) {
               )}
             </div>
           )}
+          <br />
+          {/* <div>
+            Currently connected to: {chain?.name ?? chain?.id}
+            {chain?.unsupported && " (unsupported)"}
+          </div> */}
         </>
-      )}
+      }
 
       <div>{error?.message}</div>
     </div>

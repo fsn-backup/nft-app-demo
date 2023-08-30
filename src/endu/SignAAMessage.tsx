@@ -3,7 +3,12 @@
 export function SignAAMessage(props) {
   return (
     <div className="sign-message-section">
-      {!props.privKey && (
+      {props.privKey && (
+        <div className="ConfirmationMessage">
+          Success: An Abstract Account has been created with this wallet.
+        </div>
+      )}
+      {
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -13,19 +18,14 @@ export function SignAAMessage(props) {
         >
           <button
             className="sign-button"
-            disabled={props.sigIsloading}
+            disabled={props.sigIsloading || props.privKey}
             type="submit"
           >
             {props.sigIsloading ? "Check Wallet" : "Sign Message"}
           </button>
         </form>
-      )}
-
-      {props.privKey && (
-        <div className="ConfirmationMessage">
-          Success: An Abstract Account has been created with this wallet.
-        </div>
-      )}
+      }
+      <br />
     </div>
   );
 }

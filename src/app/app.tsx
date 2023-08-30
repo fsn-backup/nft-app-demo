@@ -222,45 +222,48 @@ export function App() {
               />
             </section>
 
-            <section className="mint-section">
+            <section className="account-info">
               <h2>Mint a NFT</h2>
-              <div className="mint-content">
-                <Mint
-                  mintNFT={mintNFT}
-                  isMinting={isMinting}
-                  opData={opData}
-                  privKey={privKey}
-                />
-              </div>
+              <Mint
+                mintNFT={mintNFT}
+                isMinting={isMinting}
+                opData={opData}
+                privKey={privKey}
+              />
             </section>
 
-            <section className="mint-section">
+            <section className="account-info">
               <h2>Export AA Account Private Key</h2>
-              <div className="mint-content">
-                <button className="mint-button" type="submit" onClick={() => setShowPrivKey(true)}>
-                  Show Private Key
-                </button>
-                <button className="mint-button" type="submit" onClick={() => setShowPrivKey(false)}>
-                  Hide Private Key
-                </button>
-                <br/>
-                <br/>
-                {
-                  showPrivKey && !privKey && (
-                    <div className="privkey">
-                      <div className="privkey-content">Please sign a message first</div>
-                    </div>
-                  )
-                }
+              <div className="mint-section">
+                {!showPrivKey && (
+                  <button
+                    className="mint-button"
+                    type="submit"
+                    onClick={() => setShowPrivKey(true)}
+                    disabled={!privKey}
+                  >
+                    Show Private Key
+                  </button>
+                )}
+                {showPrivKey && (
+                  <button
+                    className="mint-button"
+                    type="submit"
+                    onClick={() => setShowPrivKey(false)}
+                    disabled={!privKey}
+                  >
+                    Hide Private Key
+                  </button>
+                )}
+                <br />
+                <br />
                 {showPrivKey && privKey && (
                   <div className="privkey">
-                    <div className="privkey-title">Private Key:</div>
                     <div className="privkey-content">{privKey}</div>
                   </div>
                 )}
               </div>
             </section>
-
           </Connected>
         </main>
       </div>

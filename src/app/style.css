@@ -32,18 +32,6 @@ body {
   text-align: center;
 }
 
-.mint-section,
-.NetworkSwitcher,
-.Account,
-.CombinedAccount,
-.SignAAMessage,
-.Mint {
-  padding: 2em; /* Increased padding */
-  background: linear-gradient(180deg, #e0f4ff, #b8d8ff); /* Lighter gradient */
-  border-radius: 16px; /* Increased border radius */
-  margin: 24px 0;
-}
-
 /* Text */
 h1,
 h2 {
@@ -113,6 +101,7 @@ a:hover {
 .LoadingMessage,
 .PromptMessage,
 .ConfirmationMessage,
+.WarnNotification,
 .ErrorNotification,
 .ProcessingMessage {
   font-weight: bold;
@@ -139,11 +128,15 @@ a:hover {
 }
 
 .ConfirmationMessage {
-  color: #006500;
+  color: blue;
+}
+
+.WarnNotification {
+  color: #ffa000;
 }
 
 .ErrorNotification {
-  color: #9a0000;
+  color: red;
 }
 
 .ProcessingMessage {
@@ -230,6 +223,16 @@ a:hover {
 }
 
 .mint-section,
+.NetworkSwitcher,
+.CombinedAccount,
+.SignAAMessage,
+.Mint {
+  padding: 2em; /* Increased padding */
+  border-radius: 16px; /* Increased border radius */
+  margin: 24px 0;
+}
+
+.mint-section,
 .sign-message-section,
 .account-info-section,
 .NetworkSwitcher {
@@ -239,4 +242,17 @@ a:hover {
 .nft {
   color: red;
   font-size: 200%;
+}
+
+.red {
+  color: red;
+}
+
+.green {
+  color: green;
+}
+
+.cname {
+  font-weight: 600;
+  color: #4db052;
 }
