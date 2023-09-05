@@ -218,6 +218,8 @@ export function App() {
     setPrivkey("");
     setAAAddress("");
     setSSKData({});
+    setOpData(null);
+    setOpData2({});
     storage.setItem("aa_privkey", "");
     storage.setItem("aa_address", "");
     storage.setItem("ss_privkey", "");
