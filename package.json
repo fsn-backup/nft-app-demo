@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@alchemy/aa-core": "^0.1.0-alpha.29",
     "ether.js": "^1.0.0",
+    "merkletreejs": "^0.3.10",
     "next": "^13.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
