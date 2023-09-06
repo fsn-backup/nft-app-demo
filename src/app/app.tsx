@@ -257,6 +257,26 @@ export function App() {
         });
   
         let address = kernel.getSender();
+
+        const client = await Client.init(nodeRpcUrl, {
+          entryPoint: entryPoint,
+          overrideBundlerRpc: bundlerUrl,
+        });
+        const call = {
+          to: address,
+          value: ethers.constants.Zero,
+          data: "0x",
+        };
+        let builder = kernel
+          .execute(call)
+          .setPaymasterAndData(paymaster);
+
+        const res = await client.sendUserOperation(builder, {
+          onBuild: (op) => {
+            console.log(op)
+          },
+        });
+
         setAAAddress(address);
         storage.setItem("aa_address", address);
         resolve(kernel);
