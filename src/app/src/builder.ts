@@ -6,6 +6,34 @@ import {
   IUserOperationBuilder,
   UserOperationMiddlewareFn,
 } from "./types";
+import {
+  BundlerJsonRpcProvider
+} from "../src";
+import {
+  encodeFunctionData,
+  toBytes,
+  concat,
+  pad,
+  toHex,
+  keccak256,
+  encodeAbiParameters,
+  concatHex,
+  zeroAddress,
+  decodeFunctionData,
+  isHex,
+  hexToBigInt,
+  getFunctionSelector,
+  getContract
+} from "viem";
+import {
+  getUserOperationHash,
+  type Address,
+  type Hex,
+  type SmartAccountSigner,
+  type UserOperationRequest,
+  getChain,
+  type SignTypedDataParams,
+} from "@alchemy/aa-core";
 
 export const DEFAULT_VERIFICATION_GAS_LIMIT = ethers.BigNumber.from(70000);
 export const DEFAULT_CALL_GAS_LIMIT = ethers.BigNumber.from(35000);
@@ -204,11 +232,41 @@ export class UserOperationBuilder implements IUserOperationBuilder {
       chainId
     );
 
+    let i = 0
     for (const fn of this.middlewareStack) {
-      await fn(ctx);
-    }
-    this.setPartial(ctx.op);
 
+      if (i == 1) {
+        // replace with rpc
+        // const validAfter = 1594068745;
+        // const validUntil = 1623012745;
+        // const SvalidAfter = 1594068745;
+        // const SvalidUntil = 1923012745;
+
+        // const paymasterUrl = "http://88.99.94.109:14339/paymaster"
+        // const pProvider = new ethers.providers.JsonRpcProvider(paymasterUrl);
+        // const pm = (await pProvider.send("pm_sponsorUserOperation", [
+        //   OpToJSON(ctx.op),
+        //   ctx.entryPoint,
+        //   ctx,
+        //   SvalidUntil,
+        //   validUntil
+        // ]));
+        // // console.log("pm: ", pm)
+
+        // ctx.op.paymasterAndData = concatHex([
+        //   pm['paymaster'] as Hex,
+        //   pad(toHex(SvalidUntil), { size: 32 }),
+        //   pad(toHex(validUntil), { size: 32 }),
+        //   pm['paymasterSignature'] as Hex,
+        // ])
+      }
+
+      // console.log("Enter fn: ", i ,fn.toString())
+      await fn(ctx);
+      i++
+    }
+
+    this.setPartial(ctx.op);
     return OpToJSON(this.currOp);
   }
 

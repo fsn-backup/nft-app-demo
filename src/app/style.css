@@ -220,6 +220,7 @@ a:hover {
 .mint-success-data-content {
   display: inline;
   margin-left: 10px;
+  word-wrap: break-word;
 }
 
 .mint-section,

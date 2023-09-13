@@ -9,23 +9,48 @@ interface VerifyingPaymasterResult {
   callGasLimit: string;
 }
 
+const DEFAULT_PRE_VERIFICATION_GAS = ethers.BigNumber.from(21000);
+const DEFAULT_VERIFICATION_GAS_LIMIT = ethers.BigNumber.from(70000);
+
+function multiplyHexString(hexString: string, factor: number): string {
+  if (!hexString.startsWith("0x")) {
+    throw new Error("Hex string must start with '0x'");
+  }
+
+  const decimalValue: number = parseInt(hexString.substring(2), 16);
+  const multipliedDecimalValue: number = decimalValue * factor;
+
+  return "0x" + multipliedDecimalValue.toString(16);
+}
+
 // Assumes the paymaster interface in https://hackmd.io/@stackup/H1oIvV-qi
 export const verifyingPaymaster =
   (paymasterRpc: string, context: any): UserOperationMiddlewareFn =>
-  async (ctx) => {
-    ctx.op.verificationGasLimit = ethers.BigNumber.from(
-      ctx.op.verificationGasLimit
-    ).mul(3);
+    async (ctx) => {
+      console.log("Enter verifyingPaymaster")
 
-    const provider = new ethers.providers.JsonRpcProvider(paymasterRpc);
-    const pm = (await provider.send("pm_sponsorUserOperation", [
-      OpToJSON(ctx.op),
-      ctx.entryPoint,
-      context,
-    ])) as VerifyingPaymasterResult;
+      // const validAfter = 1594068745;
+      // const validUntil = 1623012745;
+      // const SvalidAfter = 1594068745;
+      // const SvalidUntil = 1923012745;
 
-    ctx.op.paymasterAndData = pm.paymasterAndData;
-    ctx.op.preVerificationGas = pm.preVerificationGas;
-    ctx.op.verificationGasLimit = pm.verificationGasLimit;
-    ctx.op.callGasLimit = pm.callGasLimit;
-  };
+      // const paymasterUrl = "http://88.99.94.109:14339/paymaster"
+      // const pProvider = new ethers.providers.JsonRpcProvider(paymasterRpc);
+      // const pm = (await pProvider.send("pm_sponsorUserOperation", [
+      //   OpToJSON(ctx.op),
+      //   ctx.entryPoint,
+      //   ctx,
+      //   SvalidUntil,
+      //   validUntil
+      // ]));
+      // // console.log("pm: ", pm)
+
+      // ctx.op.paymasterAndData = concatHex([
+      //   pm['paymaster'] as Hex,
+      //   pad(toHex(SvalidUntil), { size: 32 }),
+      //   pad(toHex(validUntil), { size: 32 }),
+      //   pm['paymasterSignature'] as Hex,
+      // ])
+    }
+
+
