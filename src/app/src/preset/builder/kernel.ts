@@ -34,6 +34,8 @@ export class Kernel extends UserOperationBuilder {
   private provider: ethers.providers.JsonRpcProvider;
   private entryPoint: EntryPoint;
   private factory: KernelFactory;
+  private kernelImpl: KernelImpl;
+  private ECDSAValidator: string;
   private initCode: string;
   private multisend: Multisend;
   proxy: KernelImpl;
@@ -53,9 +55,14 @@ export class Kernel extends UserOperationBuilder {
       this.provider
     );
     this.factory = KernelFactory__factory.connect(
-      opts?.factory || KernelConst.Factory,
+      opts?.factory || "0x",
       this.provider
     );
+    this.kernelImpl = Kernel__factory.connect(
+      opts?.kernelImpl || "0x",
+      this.provider
+    );
+    this.ECDSAValidator = opts?.ECDSAValidator || "0x";
     this.initCode = "0x";
     this.multisend = Multisend__factory.connect(
       ethers.constants.AddressZero,
@@ -96,11 +103,13 @@ export class Kernel extends UserOperationBuilder {
       instance.initCode = ethers.utils.hexConcat([
         instance.factory.address,
         instance.factory.interface.encodeFunctionData("createAccount", [
-          KernelConst.KernelImpl,
+          // KernelConst.KernelImpl,
+          instance.kernelImpl.address,
           instance.proxy.interface.encodeFunctionData(
             "initialize",
             [
-              KernelConst.ECDSAValidator,
+              // KernelConst.ECDSAValidator,
+              instance.ECDSAValidator,
               await instance.signer.getAddress(),
             ]
           ),
@@ -124,7 +133,7 @@ export class Kernel extends UserOperationBuilder {
       instance.proxy = Kernel__factory.connect(addr, instance.provider);
     }
 
-    const base = instance
+    let base = instance
       .useDefaults({
         sender: instance.proxy.address,
         signature: ethers.utils.hexConcat([
@@ -135,15 +144,15 @@ export class Kernel extends UserOperationBuilder {
         ]),
       })
       .useMiddleware(instance.resolveAccount)
-      .useMiddleware(getGasPrice(instance.provider));
 
-    const withPM = opts?.paymasterMiddleware
-      ? base.useMiddleware(opts.paymasterMiddleware)
-      : base.useMiddleware(estimateUserOperationGas(instance.provider));
+    if (opts?.paymasterMiddleware) {
+      base = base.useMiddleware(opts.paymasterMiddleware)
+    }
 
-    return withPM
-      .useMiddleware(EOASignature(instance.signer))
-      .useMiddleware(instance.sudoMode);
+    base = base.useMiddleware(getGasPrice(instance.provider))
+      .useMiddleware(estimateUserOperationGas(instance.provider))
+
+    return base
   }
 
   execute(call: ICall) {

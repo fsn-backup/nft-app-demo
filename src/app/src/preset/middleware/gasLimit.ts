@@ -1,6 +1,7 @@
 import { BigNumberish, BytesLike, ethers } from "ethers";
 import { OpToJSON } from "../../utils";
 import { UserOperationMiddlewareFn } from "../../types";
+import { Builder } from "..";
 
 interface GasEstimate {
   preVerificationGas: BigNumberish;
@@ -24,9 +25,13 @@ const estimateCreationGas = async (
   });
 };
 
+export const DEFAULT_VERIFICATION_GAS_LIMIT = ethers.BigNumber.from(70000);
+
 export const estimateUserOperationGas =
   (provider: ethers.providers.JsonRpcProvider): UserOperationMiddlewareFn =>
   async (ctx) => {
+    console.log("Enter estimateUserOperationGas")
+
     if (ethers.BigNumber.from(ctx.op.nonce).isZero()) {
       ctx.op.verificationGasLimit = ethers.BigNumber.from(
         ctx.op.verificationGasLimit
@@ -38,8 +43,7 @@ export const estimateUserOperationGas =
       ctx.entryPoint,
     ])) as GasEstimate;
 
+    ctx.op.verificationGasLimit = est.verificationGasLimit ?? est.verificationGas;
     ctx.op.preVerificationGas = est.preVerificationGas;
-    ctx.op.verificationGasLimit =
-      est.verificationGasLimit ?? est.verificationGas;
     ctx.op.callGasLimit = est.callGasLimit;
   };

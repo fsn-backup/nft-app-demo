@@ -10,9 +10,21 @@ import { useSignMessage, useConfig } from "wagmi";
 import React, { useState, useEffect } from "react";
 import "./style.css";
 import * as ethers from "ethers";
-import { Client, Presets, BundlerJsonRpcProvider } from "./src";
 import EnduNFTData from "../endu/artifacts/EnduNFT.json";
+import { usePublicClient, useWalletClient } from "wagmi";
+import { providers } from "ethers";
 
+import {
+  UserOperationBuilder,
+  DEFAULT_CALL_GAS_LIMIT,
+  DEFAULT_VERIFICATION_GAS_LIMIT,
+  DEFAULT_PRE_VERIFICATION_GAS,
+  DEFAULT_USER_OP,
+  UserOperationMiddlewareFn,
+  Client,
+  Presets,
+  BundlerJsonRpcProvider,
+} from "./src";
 import {
   EOASignature,
   estimateUserOperationGas,
@@ -32,6 +44,7 @@ import {
   isHex,
   hexToBigInt,
   getFunctionSelector,
+  getContract,
 } from "viem";
 import { MerkleTree } from "merkletreejs";
 import {
@@ -43,108 +56,35 @@ import {
   getChain,
   type SignTypedDataParams,
 } from "@alchemy/aa-core";
-
-enum ParamCondition {
-  EQUAL = 0,
-  GREATER_THAN = 1,
-  LESS_THAN = 2,
-  GREATER_THAN_OR_EQUAL = 3,
-  LESS_THAN_OR_EQUAL = 4,
-  NOT_EQUAL = 5,
-}
-interface ParamRules {
-  offset: number;
-  condition: ParamCondition;
-  param: Hex;
-}
-enum Operation {
-  Call = 0,
-  DelegateCall = 1,
-}
-interface Permission {
-  target: Address;
-  valueLimit: number;
-  sig: Hex;
-  rules: ParamRules[];
-  operation: Operation;
-}
-
-function encodePermissionData(
-  permission: Permission,
-  merkleProof?: string[]
-): Hex {
-  const permissionParam = {
-    components: [
-      {
-        name: "target",
-        type: "address",
-      },
-      {
-        name: "valueLimit",
-        type: "uint256",
-      },
-      {
-        name: "sig",
-        type: "bytes4",
-      },
-      {
-        components: [
-          {
-            name: "offset",
-            type: "uint256",
-          },
-          {
-            internalType: "enum ParamCondition",
-            name: "condition",
-            type: "uint8",
-          },
-          {
-            name: "param",
-            type: "bytes32",
-          },
-        ],
-        name: "rules",
-        type: "tuple[]",
-      },
-      {
-        internalType: "enum Operation",
-        name: "operation",
-        type: "uint8",
-      },
-    ],
-    name: "permission",
-    type: "tuple",
-  };
-  let params;
-  let values;
-  if (merkleProof) {
-    params = [
-      permissionParam,
-      {
-        name: "merkleProof",
-        type: "bytes32[]",
-      },
-    ];
-    values = [permission, merkleProof];
-  } else {
-    params = [permissionParam];
-    values = [permission];
-  }
-  return encodeAbiParameters(params, values);
-}
+import { UserOperationMiddlewareCtx } from "./src/context";
+import {
+  ParamCondition,
+  ParamRules,
+  Operation,
+  Permission,
+  encodePermissionData,
+} from "./src/kernel_util";
+import { OpToJSON } from "./src/utils";
 
 export function App() {
-  let nodeRpcUrl = "https://rpc-l2-op-endurance-testnet1.fusionist.io/";
+  const nodeRpcUrl = "https://rpc-l2-op-endurance-testnet1.fusionist.io/";
   const bundlerUrl = "https://test-bundler-gamewallet.fusionist.io/";
+  const paymasterUrl =
+    "https://rpc-paymaster-l2-op-endurance-testnet1.fusionist.io/paymaster";
+
   const entryPoint = "0xba0917DF35Cf6c7aE1CABf5e7bED9a904F725318";
-  const accountFactory = "0x6218d8C39208C408d096Ac5F3BaC3472e6381526";
-  const paymaster = "0x1a256A0221b030A8A50Cb18966Ebdc4325a92D7F";
+  const paymaster = "0x1fb73194C7Bf3C97b73683e1232804F092BA043E";
   const nftAddress = "0xf578642ff303398103930832B779cD35891eBa35";
+
   const opEnduChainId = 6480001000;
 
-  const kernelFactory = "0x696E1024cef8b682d87952A652162Bc87564834b";
-  const SessionKeyOwnedValidator = "0x4755FE51b67Af2df02E940F927157FB84D5A7Fd6"
-  const aaWalletSalt = "1"
+  const aaWalletSalt = "1";
+
+  const kernelFactory = "0xA171f41588bA43666F4ee9F1f87C1D84f573d848";
+  const kernelImpl = "0x3FEf6c193e5632d6fd65Da1bC82d34EDc33Cd251";
+  const ECDSAValidator = "0xBdD707ac36bC0176464292D03f4fAA1bf5fBCeba";
+  const SessionKeyExecValidator = "0xFc3D30e186f622512b7d124C1B69D9f100215016";
+  const SessionKeyOwnedValidator = "0x99D08AA79ea8BD6d127f51CF87ce0aD64643b854";
 
   const storage = localStorage;
   const [privKey, setPrivkey] = useState("");
@@ -154,6 +94,7 @@ export function App() {
   const [opData, setOpData] = useState(null);
   const [showPrivKey, setShowPrivKey] = useState(false);
   const [sskData, setSSKData] = useState({});
+  const [isGeneratingSSK, setGeneratingSSK] = useState(false);
 
   const [isMinting2, setIsMinting2] = useState(false);
   const [opData2, setOpData2] = useState({});
@@ -173,15 +114,29 @@ export function App() {
   let sessionKeyPriv = storage.getItem("ss_privkey");
   let sessionKeyAddr = storage.getItem("ss_addr");
   let sessionKeySigData = storage.getItem("ss_sigData");
+  let sessionKeyEnableData = storage.getItem("ss_enableData");
   useEffect(() => {
-    if (sessionKeyPriv && sessionKeyAddr && sessionKeySigData) {
+    if (
+      sessionKeyAddr &&
+      sessionKeyPriv &&
+      sessionKeySigData &&
+      sessionKeyEnableData
+    ) {
       setSSKData({
         sessionKeyPriv: sessionKeyPriv,
         sessionKey: sessionKeyAddr,
         sessionKeySigData: sessionKeySigData,
+        sessionKeyEnableData: sessionKeyEnableData,
       });
+    } else {
+      if (sessionKeyAddr && sessionKeyPriv) {
+        setSSKData({
+          sessionKeyPriv: sessionKeyPriv,
+          sessionKey: sessionKeyAddr,
+        });
+      }
     }
-  }, [sessionKeyPriv, sessionKeyAddr, sessionKeySigData]);
+  }, [sessionKeyPriv, sessionKeyAddr, sessionKeySigData, sessionKeyEnableData]);
 
   const {
     data: signature,
@@ -199,20 +154,13 @@ export function App() {
         privateKeyHex,
         bundlerUrl,
         entryPoint,
-        accountFactory,
+        kernelFactory,
         setAAAddress,
         storage,
         true
       );
     }
-  }, [
-    sigVariables,
-    signature,
-    storage,
-    bundlerUrl,
-    entryPoint,
-    accountFactory,
-  ]);
+  }, [sigVariables, signature, storage, bundlerUrl, entryPoint, kernelFactory]);
 
   function clearSig() {
     setPrivkey("");
@@ -227,1281 +175,105 @@ export function App() {
     storage.setItem("ss_sigData", "");
   }
 
-  function initAAAccount(
-    privKey,
-    bundlerUrl,
-    entryPoint,
-    accountFactory,
-    setAAAddress,
-    storage,
-    state
-  ) {
-    return new Promise(async (resolve, reject) => {
-      if (!privKey) {
-        reject("Private key is missing");
-        return;
-      }
-      if (state) {
-        setIsIniting(true);
-      }
-      try {
-        const provider = new BundlerJsonRpcProvider(nodeRpcUrl).setBundlerRpc(
-          bundlerUrl
-        );
-        const wallet = new ethers.Wallet(privKey, provider);
-        const kernel = await Presets.Builder.Kernel.init(wallet, nodeRpcUrl, {
-          entryPoint: entryPoint,
-          factory: kernelFactory,
-          salt: aaWalletSalt,
-          overrideBundlerRpc: bundlerUrl,
-        });
-  
-        let address = kernel.getSender();
-
-        const client = await Client.init(nodeRpcUrl, {
-          entryPoint: entryPoint,
-          overrideBundlerRpc: bundlerUrl,
-        });
-        const call = {
-          to: address,
-          value: ethers.constants.Zero,
-          data: "0x",
-        };
-        let builder = kernel
-          .execute(call)
-          .setPaymasterAndData(paymaster);
-
-        const res = await client.sendUserOperation(builder, {
-          onBuild: (op) => {
-            console.log(op)
-          },
-        });
-
-        setAAAddress(address);
-        storage.setItem("aa_address", address);
-        resolve(kernel);
-      } catch (error) {
-        console.error(error);
-        reject(error);
-      }
-      if (state) {
-        setIsIniting(false);
-      }
-    });
+  function walletClientToSigner(walletClient: WalletClient) {
+    const { account, chain, transport } = walletClient;
+    const network = {
+      chainId: chain.id,
+      name: chain.name,
+      ensAddress: chain.contracts?.ensRegistry?.address,
+    };
+    const provider = new providers.Web3Provider(transport, network);
+    const signer = provider.getSigner(account.address);
+    return signer;
   }
 
-  function mintNFTCore() {
-    return new Promise(async (resolve, reject) => {
-      try {
-        setIsMinting(true);
-        const kernel = await initAAAccount(
-          privKey,
-          bundlerUrl,
-          entryPoint,
-          accountFactory,
-          setAAAddress,
-          storage,
-          false
-        );
-
-        const client = await Client.init(nodeRpcUrl, {
-          entryPoint: entryPoint,
-          overrideBundlerRpc: bundlerUrl,
-        });
-
-        let abi = EnduNFTData.abi;
-        const provider = new ethers.providers.JsonRpcProvider(bundlerUrl);
-        const NFTContract = new ethers.Contract(nftAddress, abi, provider);
-        const call = {
-          to: nftAddress,
-          value: ethers.constants.Zero,
-          data: NFTContract.interface.encodeFunctionData("safeMint", [
-            aaAddress,
-          ]),
-        };
-
-        let builder = kernel
-          .execute(call)
-          .setPaymasterAndData(paymaster);
-
-        let opTemp = null;
-        const res = await client.sendUserOperation(builder, {
-          onBuild: (op) => {
-            opTemp = op;
-          },
-        });
-        console.log(opTemp);
-        const ev = await res.wait();
-        resolve({
-          sender: opTemp.sender,
-          paymaster: opTemp.paymasterAndData,
-          userOpHash: res.userOpHash,
-          txHash: ev?.transactionHash,
-        });
-      } catch (error) {
-        console.error(error);
-        reject(error);
-      }
-      setIsMinting(false);
-    });
+  /** Hook to convert a viem Wallet Client to an ethers.js Signer. */
+  function useEthersSigner({ chainId }: { chainId?: number } = {}) {
+    const { data: walletClient } = useWalletClient({ chainId });
+    return React.useMemo(
+      () => (walletClient ? walletClientToSigner(walletClient) : undefined),
+      [walletClient]
+    );
   }
 
-  function mintNFT() {
+  const userWallet = useEthersSigner();
+
+  function getKernelAddress() {
     (async () => {
-      try {
-        const opData = await mintNFTCore();
-        setOpData(opData);
-      } catch (error) {
-        console.error(error);
-      }
-    })();
-  }
-
-  function generateSessionKey() {
-    (async () => {
-      const wallet = ethers.Wallet.createRandom();
-      const sessionKeyPriv = wallet.privateKey;
-      const sessionKey = wallet.address;
-      storage.setItem("ss_privkey", sessionKeyPriv);
-      storage.setItem("ss_addr", sessionKey);
-
-      const message = "Hello, world!";
-      const messageBytes = ethers.utils.toUtf8Bytes(message);
-      const sessionKeySigData = await wallet.signMessage(messageBytes);
-      storage.setItem("ss_sigData", sessionKeySigData);
-
-      setSSKData({
-        sessionKeyPriv: sessionKeyPriv,
-        sessionKey: sessionKey,
-        sessionKeySigData: sessionKeySigData,
-      });
-
-      // const messageHash = ethers.utils.hashMessage(messageBytes);
-      // const recoveredAddress = ethers.utils.recoverAddress(messageHash, sessionKeySigData);
-    })();
-  }
-
-  function mintNFTBySessionKey() {
-
-    (async () => {
-      setIsMinting2(true);
-      let sessionKeyPriv = storage.getItem("ss_privkey");
-      if (!sessionKeyPriv) {
-        return;
-      }
-      let sessionKeyAddr = storage.getItem("ss_addr");
-      if (!sessionKeyAddr) {
-        return;
-      }
-      let sessionKeySigData = storage.getItem("ss_sigData");
-      if (!sessionKeySigData) {
-        return;
-      }
-      let userAA1Addr = storage.getItem("aa_address");
-      if (!userAA1Addr) {
-        return;
-      }
-      console.log(sessionKeyPriv, sessionKeyAddr, sessionKeySigData);
-
-      const target = "" // no limited
-      const sessionKeyExecutor = "0xB5B2D6ab4aF3FB1C008d1933F8D0e3049e2d78Be"
-
-      const serverAddr = "0xB5B2D6ab4aF3FB1C008d1933F8D0e3049e2d78Be"
-      const serverPriv = "a01153107130534a21e9a4257e5670aed40a2c299f79b881c97e6d1a5a9f38a4"
-
-      const provider = new BundlerJsonRpcProvider(nodeRpcUrl).setBundlerRpc(
-        bundlerUrl
-      );
-      const serverWallet = new ethers.Wallet(serverPriv, provider);
-
-      const kernel = await Presets.Builder.Kernel.init(serverWallet, nodeRpcUrl, {
+      setIsIniting(true);
+      console.log("start init kernel");
+      const kernel = await Presets.Builder.Kernel.init(userWallet, nodeRpcUrl, {
         entryPoint: entryPoint,
         factory: kernelFactory,
         salt: aaWalletSalt,
         overrideBundlerRpc: bundlerUrl,
+        kernelImpl: kernelImpl,
+        ECDSAValidator: ECDSAValidator,
+        paymasterMiddleware: paymasterFn,
       });
-      console.log("Kernel initialized");
+      console.log("kernel:", kernel);
+      const address = kernel.getSender();
+      console.log(`Kernel address: ${address}`);
 
-      let abi = [
-        {
-          inputs: [
-            {
-              internalType: "contract IEntryPoint",
-              name: "_entryPoint",
-              type: "address",
-            },
-          ],
-          stateMutability: "nonpayable",
-          type: "constructor",
-        },
-        {
-          inputs: [],
-          name: "AlreadyInitialized",
-          type: "error",
-        },
-        {
-          inputs: [],
-          name: "DisabledMode",
-          type: "error",
-        },
-        {
-          inputs: [],
-          name: "NotAuthorizedCaller",
-          type: "error",
-        },
-        {
-          inputs: [],
-          name: "NotEntryPoint",
-          type: "error",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "oldValidator",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "address",
-              name: "newValidator",
-              type: "address",
-            },
-          ],
-          name: "DefaultValidatorChanged",
-          type: "event",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "bytes4",
-              name: "selector",
-              type: "bytes4",
-            },
-            {
-              indexed: true,
-              internalType: "address",
-              name: "executor",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "address",
-              name: "validator",
-              type: "address",
-            },
-          ],
-          name: "ExecutionChanged",
-          type: "event",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "newImplementation",
-              type: "address",
-            },
-          ],
-          name: "Upgraded",
-          type: "event",
-        },
-        {
-          stateMutability: "payable",
-          type: "fallback",
-        },
-        {
-          inputs: [
-            {
-              internalType: "bytes4",
-              name: "_disableFlag",
-              type: "bytes4",
-            },
-          ],
-          name: "disableMode",
-          outputs: [],
-          stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "eip712Domain",
-          outputs: [
-            {
-              internalType: "bytes1",
-              name: "fields",
-              type: "bytes1",
-            },
-            {
-              internalType: "string",
-              name: "name",
-              type: "string",
-            },
-            {
-              internalType: "string",
-              name: "version",
-              type: "string",
-            },
-            {
-              internalType: "uint256",
-              name: "chainId",
-              type: "uint256",
-            },
-            {
-              internalType: "address",
-              name: "verifyingContract",
-              type: "address",
-            },
-            {
-              internalType: "bytes32",
-              name: "salt",
-              type: "bytes32",
-            },
-            {
-              internalType: "uint256[]",
-              name: "extensions",
-              type: "uint256[]",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "entryPoint",
-          outputs: [
-            {
-              internalType: "contract IEntryPoint",
-              name: "",
-              type: "address",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "to",
-              type: "address",
-            },
-            {
-              internalType: "uint256",
-              name: "value",
-              type: "uint256",
-            },
-            {
-              internalType: "bytes",
-              name: "data",
-              type: "bytes",
-            },
-            {
-              internalType: "enum Operation",
-              name: "operation",
-              type: "uint8",
-            },
-          ],
-          name: "execute",
-          outputs: [],
-          stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "getDefaultValidator",
-          outputs: [
-            {
-              internalType: "contract IKernelValidator",
-              name: "validator",
-              type: "address",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "getDisabledMode",
-          outputs: [
-            {
-              internalType: "bytes4",
-              name: "disabled",
-              type: "bytes4",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "bytes4",
-              name: "_selector",
-              type: "bytes4",
-            },
-          ],
-          name: "getExecution",
-          outputs: [
-            {
-              components: [
-                {
-                  internalType: "ValidAfter",
-                  name: "validAfter",
-                  type: "uint48",
-                },
-                {
-                  internalType: "ValidUntil",
-                  name: "validUntil",
-                  type: "uint48",
-                },
-                {
-                  internalType: "address",
-                  name: "executor",
-                  type: "address",
-                },
-                {
-                  internalType: "contract IKernelValidator",
-                  name: "validator",
-                  type: "address",
-                },
-              ],
-              internalType: "struct ExecutionDetail",
-              name: "",
-              type: "tuple",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "getLastDisabledTime",
-          outputs: [
-            {
-              internalType: "uint48",
-              name: "",
-              type: "uint48",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "uint192",
-              name: "key",
-              type: "uint192",
-            },
-          ],
-          name: "getNonce",
-          outputs: [
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "getNonce",
-          outputs: [
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "contract IKernelValidator",
-              name: "_defaultValidator",
-              type: "address",
-            },
-            {
-              internalType: "bytes",
-              name: "_data",
-              type: "bytes",
-            },
-          ],
-          name: "initialize",
-          outputs: [],
-          stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "bytes32",
-              name: "hash",
-              type: "bytes32",
-            },
-            {
-              internalType: "bytes",
-              name: "signature",
-              type: "bytes",
-            },
-          ],
-          name: "isValidSignature",
-          outputs: [
-            {
-              internalType: "bytes4",
-              name: "",
-              type: "bytes4",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "name",
-          outputs: [
-            {
-              internalType: "string",
-              name: "",
-              type: "string",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-            {
-              internalType: "uint256[]",
-              name: "",
-              type: "uint256[]",
-            },
-            {
-              internalType: "uint256[]",
-              name: "",
-              type: "uint256[]",
-            },
-            {
-              internalType: "bytes",
-              name: "",
-              type: "bytes",
-            },
-          ],
-          name: "onERC1155BatchReceived",
-          outputs: [
-            {
-              internalType: "bytes4",
-              name: "",
-              type: "bytes4",
-            },
-          ],
-          stateMutability: "pure",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-            {
-              internalType: "bytes",
-              name: "",
-              type: "bytes",
-            },
-          ],
-          name: "onERC1155Received",
-          outputs: [
-            {
-              internalType: "bytes4",
-              name: "",
-              type: "bytes4",
-            },
-          ],
-          stateMutability: "pure",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-            {
-              internalType: "bytes",
-              name: "",
-              type: "bytes",
-            },
-          ],
-          name: "onERC721Received",
-          outputs: [
-            {
-              internalType: "bytes4",
-              name: "",
-              type: "bytes4",
-            },
-          ],
-          stateMutability: "pure",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "contract IKernelValidator",
-              name: "_defaultValidator",
-              type: "address",
-            },
-            {
-              internalType: "bytes",
-              name: "_data",
-              type: "bytes",
-            },
-          ],
-          name: "setDefaultValidator",
-          outputs: [],
-          stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "bytes4",
-              name: "_selector",
-              type: "bytes4",
-            },
-            {
-              internalType: "address",
-              name: "_executor",
-              type: "address",
-            },
-            {
-              internalType: "contract IKernelValidator",
-              name: "_validator",
-              type: "address",
-            },
-            {
-              internalType: "uint48",
-              name: "_validUntil",
-              type: "uint48",
-            },
-            {
-              internalType: "uint48",
-              name: "_validAfter",
-              type: "uint48",
-            },
-            {
-              internalType: "bytes",
-              name: "_enableData",
-              type: "bytes",
-            },
-          ],
-          name: "setExecution",
-          outputs: [],
-          stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "_newImplementation",
-              type: "address",
-            },
-          ],
-          name: "upgradeTo",
-          outputs: [],
-          stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              components: [
-                {
-                  internalType: "address",
-                  name: "sender",
-                  type: "address",
-                },
-                {
-                  internalType: "uint256",
-                  name: "nonce",
-                  type: "uint256",
-                },
-                {
-                  internalType: "bytes",
-                  name: "initCode",
-                  type: "bytes",
-                },
-                {
-                  internalType: "bytes",
-                  name: "callData",
-                  type: "bytes",
-                },
-                {
-                  internalType: "uint256",
-                  name: "callGasLimit",
-                  type: "uint256",
-                },
-                {
-                  internalType: "uint256",
-                  name: "verificationGasLimit",
-                  type: "uint256",
-                },
-                {
-                  internalType: "uint256",
-                  name: "preVerificationGas",
-                  type: "uint256",
-                },
-                {
-                  internalType: "uint256",
-                  name: "maxFeePerGas",
-                  type: "uint256",
-                },
-                {
-                  internalType: "uint256",
-                  name: "maxPriorityFeePerGas",
-                  type: "uint256",
-                },
-                {
-                  internalType: "bytes",
-                  name: "paymasterAndData",
-                  type: "bytes",
-                },
-                {
-                  internalType: "bytes",
-                  name: "signature",
-                  type: "bytes",
-                },
-              ],
-              internalType: "struct UserOperation",
-              name: "userOp",
-              type: "tuple",
-            },
-            {
-              internalType: "bytes32",
-              name: "userOpHash",
-              type: "bytes32",
-            },
-            {
-              internalType: "uint256",
-              name: "missingAccountFunds",
-              type: "uint256",
-            },
-          ],
-          name: "validateUserOp",
-          outputs: [
-            {
-              internalType: "ValidationData",
-              name: "validationData",
-              type: "uint256",
-            },
-          ],
-          stateMutability: "payable",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "version",
-          outputs: [
-            {
-              internalType: "string",
-              name: "",
-              type: "string",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          stateMutability: "payable",
-          type: "receive",
-        },
-      ];
-      
-      const KernelContract = new ethers.Contract(userAA1Addr, abi, provider);
+      setAAAddress(address);
+      storage.setItem("aa_address", address);
+      setIsIniting(false);
+    })();
+  }
 
-      let nftAbi = [
-        {
-          inputs: [],
-          stateMutability: "nonpayable",
-          type: "constructor",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "owner",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "address",
-              name: "approved",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "Approval",
-          type: "event",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "owner",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "address",
-              name: "operator",
-              type: "address",
-            },
-            {
-              indexed: false,
-              internalType: "bool",
-              name: "approved",
-              type: "bool",
-            },
-          ],
-          name: "ApprovalForAll",
-          type: "event",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "previousOwner",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "address",
-              name: "newOwner",
-              type: "address",
-            },
-          ],
-          name: "OwnershipTransferred",
-          type: "event",
-        },
-        {
-          anonymous: false,
-          inputs: [
-            {
-              indexed: true,
-              internalType: "address",
-              name: "from",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "address",
-              name: "to",
-              type: "address",
-            },
-            {
-              indexed: true,
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "Transfer",
-          type: "event",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "to",
-              type: "address",
-            },
-            {
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "approve",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "owner",
-              type: "address",
-            },
-          ],
-          name: "balanceOf",
-          outputs: [
-            {
-              internalType: "uint256",
-              name: "",
-              type: "uint256",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "getApproved",
-          outputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "owner",
-              type: "address",
-            },
-            {
-              internalType: "address",
-              name: "operator",
-              type: "address",
-            },
-          ],
-          name: "isApprovedForAll",
-          outputs: [
-            {
-              internalType: "bool",
-              name: "",
-              type: "bool",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "name",
-          outputs: [
-            {
-              internalType: "string",
-              name: "",
-              type: "string",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "owner",
-          outputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "ownerOf",
-          outputs: [
-            {
-              internalType: "address",
-              name: "",
-              type: "address",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "renounceOwnership",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "to",
-              type: "address",
-            },
-          ],
-          name: "safeMint",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "from",
-              type: "address",
-            },
-            {
-              internalType: "address",
-              name: "to",
-              type: "address",
-            },
-            {
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "safeTransferFrom",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "from",
-              type: "address",
-            },
-            {
-              internalType: "address",
-              name: "to",
-              type: "address",
-            },
-            {
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-            {
-              internalType: "bytes",
-              name: "data",
-              type: "bytes",
-            },
-          ],
-          name: "safeTransferFrom",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "operator",
-              type: "address",
-            },
-            {
-              internalType: "bool",
-              name: "approved",
-              type: "bool",
-            },
-          ],
-          name: "setApprovalForAll",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "bytes4",
-              name: "interfaceId",
-              type: "bytes4",
-            },
-          ],
-          name: "supportsInterface",
-          outputs: [
-            {
-              internalType: "bool",
-              name: "",
-              type: "bool",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [],
-          name: "symbol",
-          outputs: [
-            {
-              internalType: "string",
-              name: "",
-              type: "string",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "tokenURI",
-          outputs: [
-            {
-              internalType: "string",
-              name: "",
-              type: "string",
-            },
-          ],
-          stateMutability: "view",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "from",
-              type: "address",
-            },
-            {
-              internalType: "address",
-              name: "to",
-              type: "address",
-            },
-            {
-              internalType: "uint256",
-              name: "tokenId",
-              type: "uint256",
-            },
-          ],
-          name: "transferFrom",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "newOwner",
-              type: "address",
-            },
-          ],
-          name: "transferOwnership",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-      ];
+  const paymasterFn = async (ctx: UserOperationMiddlewareCtx) => {
+    console.log("Enter verifyingPaymaster");
 
-      const NFTContract = new ethers.Contract(nftAddress, nftAbi, provider);
+    const validAfter = 1594068745;
+    let validUntil = 1623012745;
+    const SvalidAfter = 1594068745;
+    let SvalidUntil = 1923012745;
 
-      const call = {
-        to: userAA1Addr,
-        value: 0,
-        data: KernelContract.interface.encodeFunctionData("execute", [
-          nftAddress,
-          0,
-          NFTContract.interface.encodeFunctionData("safeMint", [userAA1Addr]),
-          0,
-        ]),
-      };
+    const pProvider = new ethers.providers.JsonRpcProvider(paymasterUrl);
+    const pm = await pProvider.send("pm_sponsorUserOperation", [
+      OpToJSON(ctx.op),
+      ctx.entryPoint,
+      ctx,
+      SvalidUntil,
+      validUntil,
+    ]);
 
+    ctx.op.paymasterAndData = concatHex([
+      pm["paymaster"] as Hex,
+      pad(toHex(SvalidUntil), { size: 32 }),
+      pad(toHex(validUntil), { size: 32 }),
+      pm["paymasterSignature"] as Hex,
+    ]);
+  };
+
+  function signSessionKey() {
+    (async () => {
+      const validAfter = 1594068745;
+      const validUntil = 1623012745;
+
+      const SvalidAfter = 1594068745;
+      const SvalidUntil = 1923012745;
+
+      const sig = "0x00000000";
       const permissions: Permission[] = [
-        // {
-        //   target: target as Hex,
-        //   valueLimit: 0,
-        //   sig: getFunctionSelector("mint(address)"),
-        //   operation: Operation.Call,
-        //   rules: [
-        //     {
-        //       condition: ParamCondition.EQUAL,
-        //       offset: 0,
-        //       param: pad(sessionKeyExecutor as Hex, { size: 32 }),
-        //     },
-        //   ],
-        // },
+        {
+          target: aaAddress as Hex,
+          valueLimit: 0,
+          sig: sig,
+          operation: Operation.Call,
+          rules: [
+            {
+              condition: ParamCondition.EQUAL,
+              offset: 0,
+              param: pad(aaAddress as Hex, { size: 32 }),
+            },
+          ],
+        },
       ];
 
       const sessionKeyData = {
-        validAfter: 0,
-        validUntil: 0,
+        validAfter: SvalidAfter,
+        validUntil: SvalidUntil,
         permissions,
         paymaster: paymaster,
       };
@@ -1531,10 +303,280 @@ export function App() {
         pad(merkleTree.getHexRoot() as Hex, { size: 32 }),
         pad(toHex(sessionKeyData.validAfter), { size: 6 }),
         pad(toHex(sessionKeyData.validUntil), { size: 6 }),
-        // paymaster,
-        serverAddr, // my self logic
+        paymaster,
       ]);
+      console.log("enableData:", enableData);
       const enableDataLength = enableData.length / 2 - 1;
+
+      const kernel = await Presets.Builder.Kernel.init(userWallet, nodeRpcUrl, {
+        entryPoint: entryPoint,
+        factory: kernelFactory,
+        salt: aaWalletSalt,
+        overrideBundlerRpc: bundlerUrl,
+        kernelImpl: kernelImpl,
+        ECDSAValidator: ECDSAValidator,
+        paymasterMiddleware: paymasterFn,
+      });
+      const NFTContract = new ethers.Contract(
+        nftAddress,
+        EnduNFTData.abi,
+        userWallet
+      );
+      const call = {
+        to: nftAddress,
+        value: 0,
+        data: NFTContract.interface.encodeFunctionData("safeMint", [aaAddress]),
+      };
+
+      const callData = kernel.proxy.interface.encodeFunctionData("execute", [
+        call.to,
+        call.value,
+        call.data,
+        Operation.Call,
+      ]);
+      const enableSigHex = callData.slice(2, 2 + 8);
+      const enableSig = Buffer.from(enableSigHex, "hex");
+
+      const domain = {
+        name: "Kernel",
+        version: "0.2.1",
+        chainId: 6480001000,
+        verifyingContract: aaAddress,
+      };
+      const types = {
+        ValidatorApproved: [
+          { name: "sig", type: "bytes4" },
+          { name: "validatorData", type: "uint256" },
+          { name: "executor", type: "address" },
+          { name: "enableData", type: "bytes" },
+        ],
+      };
+      const message = {
+        sig: enableSig,
+        validatorData: hexToBigInt(
+          concatHex([
+            pad(toHex(validUntil), { size: 6 }),
+            pad(toHex(validAfter), { size: 6 }),
+            SessionKeyOwnedValidator,
+          ]),
+          { size: 32 }
+        ),
+        executor: aaAddress as Address,
+        enableData: enableData,
+      };
+      const enableSignature = await userWallet._signTypedData(
+        domain,
+        types,
+        message
+      );
+      console.log("enableSignature:", enableSignature);
+
+      setSSKData({
+        ...sskData,
+        sessionKeySigData: enableSignature,
+        sessionKeyEnableData: enableData,
+      });
+      storage.setItem("ss_sigData", enableSignature);
+      storage.setItem("ss_enableData", enableData);
+    })();
+  }
+
+  function initAAAccount(
+    privKey,
+    bundlerUrl,
+    entryPoint,
+    kernelFactory,
+    setAAAddress,
+    storage,
+    state
+  ) {
+    return new Promise(async (resolve, reject) => {
+      if (!privKey) {
+        reject("Private key is missing");
+        return;
+      }
+      if (state) {
+        setIsIniting(true);
+      }
+      try {
+        const provider = new BundlerJsonRpcProvider(nodeRpcUrl).setBundlerRpc(
+          bundlerUrl
+        );
+        const wallet = new ethers.Wallet(privKey, provider);
+        const kernel = await Presets.Builder.Kernel.init(wallet, nodeRpcUrl, {
+          entryPoint: entryPoint,
+          factory: kernelFactory,
+          salt: aaWalletSalt,
+          overrideBundlerRpc: bundlerUrl,
+        });
+
+        let address = kernel.getSender();
+
+        const client = await Client.init(nodeRpcUrl, {
+          entryPoint: entryPoint,
+          overrideBundlerRpc: bundlerUrl,
+        });
+        const call = {
+          to: address,
+          value: ethers.constants.Zero,
+          data: "0x",
+        };
+        let builder = kernel.execute(call).setPaymasterAndData(paymaster);
+
+        const res = await client.sendUserOperation(builder, {
+          onBuild: (op) => {
+            console.log(op);
+          },
+        });
+
+        setAAAddress(address);
+        storage.setItem("aa_address", address);
+        resolve(kernel);
+      } catch (error) {
+        console.error(error);
+        reject(error);
+      }
+      if (state) {
+        setIsIniting(false);
+      }
+    });
+  }
+
+  function generateSessionKey() {
+    (async () => {
+      setGeneratingSSK(true);
+      const wallet = ethers.Wallet.createRandom();
+      const sessionKeyPriv = wallet.privateKey;
+      const sessionKey = wallet.address;
+      storage.setItem("ss_privkey", sessionKeyPriv);
+      storage.setItem("ss_addr", sessionKey);
+
+      setSSKData({
+        sessionKeyPriv: sessionKeyPriv,
+        sessionKey: sessionKey,
+      });
+      setGeneratingSSK(false);
+    })();
+  }
+
+  function mintNFTBySessionKey() {
+    (async () => {
+      setIsMinting2(true);
+      let sessionKeyPriv = storage.getItem("ss_privkey");
+      if (!sessionKeyPriv) {
+        return;
+      }
+      let sessionKeyAddr = storage.getItem("ss_addr");
+      if (!sessionKeyAddr) {
+        return;
+      }
+      let enableSigData = storage.getItem("ss_sigData");
+      if (!enableSigData) {
+        return;
+      }
+      let sessionKeyEnableData = storage.getItem("ss_enableData");
+      if (!sessionKeyEnableData) {
+        return;
+      }
+      let aaAddress = storage.getItem("aa_address");
+      if (!aaAddress) {
+        return;
+      }
+      console.log(sessionKeyPriv, sessionKeyAddr, enableSigData);
+
+      const serverAddr = "0xB5B2D6ab4aF3FB1C008d1933F8D0e3049e2d78Be";
+      const serverPriv =
+        "a01153107130534a21e9a4257e5670aed40a2c299f79b881c97e6d1a5a9f38a4";
+
+      const client = await Client.init(nodeRpcUrl, {
+        entryPoint: entryPoint,
+        overrideBundlerRpc: bundlerUrl,
+      });
+
+      const validatorMode = "0x00000002";
+
+      const validAfter = 1594068745;
+      let validUntil = 1623012745;
+      const SvalidAfter = 1594068745;
+      let SvalidUntil = 1923012745;
+
+      const provider = new BundlerJsonRpcProvider(nodeRpcUrl).setBundlerRpc(
+        bundlerUrl
+      );
+      const serverWallet = new ethers.Wallet(serverPriv, provider);
+
+      const kernel = await Presets.Builder.Kernel.init(
+        serverWallet,
+        nodeRpcUrl,
+        {
+          entryPoint: entryPoint,
+          factory: kernelFactory,
+          salt: aaWalletSalt,
+          overrideBundlerRpc: bundlerUrl,
+          kernelImpl: kernelImpl,
+          ECDSAValidator: ECDSAValidator,
+          paymasterMiddleware: paymasterFn,
+        }
+      );
+
+      const NFTContract = new ethers.Contract(
+        nftAddress,
+        EnduNFTData.abi,
+        userWallet
+      );
+
+      const call = {
+        to: nftAddress,
+        value: 0,
+        data: NFTContract.interface.encodeFunctionData("safeMint", [aaAddress]),
+      };
+
+      const builder = kernel.execute(call).setSender(aaAddress);
+      const userOp = await client.buildUserOperation(builder);
+
+      const hash = getUserOperationHash(
+        {
+          sender: userOp.sender as Address,
+          nonce: userOp.nonce as Hex,
+          initCode: userOp.initCode as Hex,
+          callData: userOp.callData as Hex,
+          callGasLimit: userOp.callGasLimit as Hex,
+          verificationGasLimit: userOp.verificationGasLimit as Hex,
+          preVerificationGas: userOp.preVerificationGas as Hex,
+          maxFeePerGas: userOp.maxFeePerGas as Hex,
+          maxPriorityFeePerGas: userOp.maxPriorityFeePerGas as Hex,
+          paymasterAndData: userOp.paymasterAndData as Hex,
+          signature: userOp.signature as Hex,
+        },
+        entryPoint,
+        BigInt(opEnduChainId)
+      );
+
+      const sessionKeyWallet = new ethers.Wallet(sessionKeyPriv, provider);
+
+      const sig = "0x00000000";
+      const permissions: Permission[] = [
+        {
+          target: aaAddress as Hex,
+          valueLimit: 0,
+          sig: sig,
+          operation: Operation.Call,
+          rules: [
+            {
+              condition: ParamCondition.EQUAL,
+              offset: 0,
+              param: pad(aaAddress as Hex, { size: 32 }),
+            },
+          ],
+        },
+      ];
+
+      const sessionKeyData = {
+        validAfter: SvalidAfter,
+        validUntil: SvalidUntil,
+        permissions,
+        paymaster: paymaster,
+      };
 
       const encodedPermissionData =
         sessionKeyData.permissions &&
@@ -1543,6 +585,23 @@ export function App() {
           ? encodePermissionData(permissions[0])
           : "0x";
 
+      function getMerkleTree(): MerkleTree {
+        const permissionPacked = sessionKeyData.permissions?.map((permission) =>
+          encodePermissionData(permission)
+        );
+        if (permissionPacked?.length === 1)
+          permissionPacked.push(permissionPacked[0]);
+
+        return permissionPacked && permissionPacked.length !== 0
+          ? new MerkleTree(permissionPacked, keccak256, {
+              sortPairs: true,
+              hashLeaves: true,
+            })
+          : new MerkleTree([pad("0x00", { size: 32 })], keccak256, {
+              hashLeaves: false,
+            });
+      }
+      const merkleTree = getMerkleTree();
       const merkleProof = merkleTree.getHexProof(
         keccak256(encodedPermissionData)
       );
@@ -1554,74 +613,38 @@ export function App() {
           ? encodePermissionData(permissions[0], merkleProof)
           : "0x";
 
+      const messageBytes = ethers.utils.arrayify(hash);
+      const sessionKeySigData = await sessionKeyWallet.signMessage(
+        messageBytes
+      );
+
       const sessionKeySig = concatHex([
         sessionKeyAddr as Hex,
         sessionKeySigData as Hex,
         encodedData,
       ]);
-
-      const validAfter = 10000000000;
-      const validUntil = 10000000000;
-
-      let domain = {};
-
-      let types = {
-        ValidatorApproved: [
-          { name: "sig", type: "bytes4" },
-          { name: "validatorData", type: "uint256" },
-          { name: "executor", type: "address" },
-          { name: "enableData", type: "bytes" },
-        ],
-      };
-      let message = {
-        sig: getFunctionSelector("mint(address)"),
-        validatorData: hexToBigInt(
-          concatHex([
-            pad(toHex(validUntil), { size: 6 }),
-            pad(toHex(validAfter), { size: 6 }),
-            SessionKeyOwnedValidator,
-          ]),
-          { size: 32 }
-        ),
-        executor: sessionKeyExecutor as Address,
-        enableData: await enableData,
-      };
-      let enableSignature = await serverWallet._signTypedData(
-        domain,
-        types,
-        message
-      );
-      console.log("enableSignature", enableSignature);
-      const enableSigLength = 65;
+console.log(2)
+      const enableSigLength = enableSigData.length / 2 - 1;
+      const enableDataLength = sessionKeyEnableData.length / 2 - 1;
 
       const signature = concatHex([
         validatorMode,
         pad(toHex(validUntil), { size: 6 }), // 6 bytes 4 - 10
         pad(toHex(validAfter), { size: 6 }), // 6 bytes 10 - 16
         pad(SessionKeyOwnedValidator, { size: 20 }), // 20 bytes 16 - 36
-        pad(sessionKeyExecutor as Hex, { size: 20 }), // 20 bytes 36 - 56
+        pad(aaAddress as Hex, { size: 20 }), // 20 bytes 36 - 56
         pad(toHex(enableDataLength), { size: 32 }),
-        enableData,
+        sessionKeyEnableData as Hex,
         pad(toHex(enableSigLength), { size: 32 }),
-        enableSignature as Hex,
+        enableSigData as Hex,
         sessionKeySig as Hex,
       ]);
 
-      // console.log(signature)
-      const builder = kernel
-        .execute(call)
-        .setSignature(signature)
-        .setPaymasterAndData(paymaster);
-      console.log("Builder initialized");
-
-      const client = await Client.init(nodeRpcUrl, {
-        "entryPoint": entryPoint,
-        "overrideBundlerRpc": bundlerUrl,
-      });
-      let opTemp = null
-      const res = await client.sendUserOperation(builder, {
+      userOp.signature = signature;
+      let opTemp = null;
+      const res = await client.sendUserOperationOnly(builder, userOp, {
         onBuild: (op) => {
-          opTemp = op
+          opTemp = op;
         },
       });
       console.log(`UserOpHash: ${res.userOpHash}`);
@@ -1654,12 +677,31 @@ export function App() {
             </section>
 
             <section className="message-sign">
-              <h2>Sign a message</h2>
-              <SignAAMessage
-                privKey={privKey}
-                sigIsloading={sigIsloading}
-                signMessage={signMessage}
-              />
+              <h2>Create your Abstract Account</h2>
+              <div className="sign-message-section">
+                {!aaAddress && !isIniting && (
+                  <div className="PromptMessage">
+                    You may need to sign a message to create your Abstract
+                    Account.
+                  </div>
+                )}
+                {aaAddress && !isIniting && (
+                  <div className="ConfirmationMessage">
+                    You already created your Abstract Account.
+                  </div>
+                )}
+                {
+                  <button
+                    className="sign-button"
+                    disabled={aaAddress || isIniting}
+                    onClick={() => getKernelAddress()}
+                  >
+                    Init Abstract Account
+                  </button>
+                }
+                <br />
+                <br />
+              </div>
             </section>
 
             <section className="account-info">
@@ -1673,49 +715,6 @@ export function App() {
             </section>
 
             <section className="account-info">
-              <h2>Mint a NFT</h2>
-              <Mint
-                mintNFT={mintNFT}
-                isMinting={isMinting}
-                opData={opData}
-                privKey={privKey}
-              />
-            </section>
-
-            <section className="account-info">
-              <h2>Export AA Account Private Key</h2>
-              <div className="mint-section">
-                {!showPrivKey && (
-                  <button
-                    className="mint-button"
-                    type="submit"
-                    onClick={() => setShowPrivKey(true)}
-                    disabled={!privKey}
-                  >
-                    Show Private Key
-                  </button>
-                )}
-                {showPrivKey && (
-                  <button
-                    className="mint-button"
-                    type="submit"
-                    onClick={() => setShowPrivKey(false)}
-                    disabled={!privKey}
-                  >
-                    Hide Private Key
-                  </button>
-                )}
-                <br />
-                <br />
-                {showPrivKey && privKey && (
-                  <div className="privkey">
-                    <div className="privkey-content">{privKey}</div>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="account-info">
               <h2>Generate a Session Key</h2>
               <div className="mint-section">
                 {
@@ -1723,26 +722,66 @@ export function App() {
                     className="mint-button"
                     type="submit"
                     onClick={() => generateSessionKey()}
-                    disabled={!privKey}
+                    disabled={false}
                   >
-                    Create
+                    Generate a Session Key
                   </button>
                 }
                 <br />
                 <br />
-                {sskData.sessionKey && (
+                {sskData.sessionKey && !isGeneratingSSK && (
                   <div className="privkey">
                     <div className="privkey-content">
-                      <div>Session Key: {sskData.sessionKey}</div>
-                      <div>
-                        Session Key Private Key: {sskData.sessionKeyPriv}
+                      <div className="mint-success-data">
+                        <div className="mint-success-data-title">
+                          Session Key
+                        </div>
+                        <div className="mint-success-data-content">
+                          {sskData.sessionKey}
+                        </div>
+                        <div className="mint-success-data-title">
+                          Session Key Private Key
+                        </div>
+                        <div className="mint-success-data-content">
+                          {sskData.sessionKeyPriv}
+                        </div>
+                        <div className="mint-success-data-title">
+                          Session Key Signature
+                        </div>
+                        <div className="mint-success-data-content">
+                          {sskData.sessionKeySigData && (
+                            <span>{sskData.sessionKeySigData}</span>
+                          )}
+                          {!sskData.sessionKeySigData && (
+                            <span className="red">Not signed yet</span>
+                          )}
+                        </div>
                       </div>
-                      {/* <div>
-                        Session Key Signature Data: {sskData.sessionKeySigData}
-                      </div> */}
                     </div>
                   </div>
                 )}
+                {isGeneratingSSK && <div>Generating...</div>}
+              </div>
+            </section>
+
+            <section className="message-sign">
+              <h2>Sign the Sesskey Key</h2>
+              <div className="sign-message-section">
+                {sskData.sessionKeySigData && (
+                  <div className="ConfirmationMessage">
+                    You already signed the Session Key
+                  </div>
+                )}
+                {
+                  <button
+                    className="sign-button"
+                    onClick={() => signSessionKey()}
+                    disabled={sskData.sessionKeySigData}
+                  >
+                    Sign it
+                  </button>
+                }
+                <br />
               </div>
             </section>
 
@@ -1754,7 +793,7 @@ export function App() {
                     className="mint-button"
                     type="submit"
                     onClick={() => mintNFTBySessionKey()}
-                    disabled={!privKey || isMinting2 || !sskData.sessionKey}
+                    disabled={false}
                   >
                     Mint by Session Key
                   </button>
@@ -1768,7 +807,15 @@ export function App() {
                       <div>Paymaster: {opData2.paymaster}</div>
                       <div>UserOpHash: {opData2.userOpHash}</div>
                       <div>TxHash: {opData2.txHash}</div>
-                      <div>View on Explorer: <a href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/tx/${opData2.txHash}`} target="_blank">Check it</a></div>
+                      <div>
+                        View on Explorer:{" "}
+                        <a
+                          href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/tx/${opData2.txHash}`}
+                          target="_blank"
+                        >
+                          Check it
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )}
