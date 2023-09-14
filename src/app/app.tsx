@@ -68,6 +68,8 @@ import {
 import { OpToJSON } from "./src/utils";
 
 export function App() {
+  const { address: userAddress, connector, isConnected } = useAccount()
+
   const nodeRpcUrl = "https://rpc-l2-op-endurance-testnet1.fusionist.io/";
   const bundlerUrl = "https://test-bundler-gamewallet.fusionist.io/";
   const paymasterUrl =
@@ -194,7 +196,6 @@ export function App() {
   }
 
   const userWallet = useEthersSigner();
-  const { userAddress } = useAccount();
 
   function getKernelAddress() {
     (async () => {
