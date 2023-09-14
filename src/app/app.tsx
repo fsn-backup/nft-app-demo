@@ -13,6 +13,7 @@ import * as ethers from "ethers";
 import EnduNFTData from "../endu/artifacts/EnduNFT.json";
 import { usePublicClient, useWalletClient } from "wagmi";
 import { providers } from "ethers";
+import { useAccount, useEnsName } from "wagmi";
 
 import {
   UserOperationBuilder,
@@ -73,7 +74,7 @@ export function App() {
     "https://rpc-paymaster-l2-op-endurance-testnet1.fusionist.io/paymaster";
 
   const entryPoint = "0xba0917DF35Cf6c7aE1CABf5e7bED9a904F725318";
-  const paymaster = "0x1fb73194C7Bf3C97b73683e1232804F092BA043E";
+  const paymaster = "0x396634BcFc59ad0096BE03c04f179a3B5aC00568";
   const nftAddress = "0xf578642ff303398103930832B779cD35891eBa35";
 
   const opEnduChainId = 6480001000;
@@ -91,13 +92,10 @@ export function App() {
   const [aaAddress, setAAAddress] = useState("");
   const [isIniting, setIsIniting] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
-  const [opData, setOpData] = useState(null);
+  const [opData, setOpData] = useState({});
   const [showPrivKey, setShowPrivKey] = useState(false);
   const [sskData, setSSKData] = useState({});
   const [isGeneratingSSK, setGeneratingSSK] = useState(false);
-
-  const [isMinting2, setIsMinting2] = useState(false);
-  const [opData2, setOpData2] = useState({});
 
   let privKeyLocal = storage.getItem("aa_privkey");
   useEffect(() => {
@@ -167,7 +165,6 @@ export function App() {
     setAAAddress("");
     setSSKData({});
     setOpData(null);
-    setOpData2({});
     storage.setItem("aa_privkey", "");
     storage.setItem("aa_address", "");
     storage.setItem("ss_privkey", "");
@@ -197,6 +194,7 @@ export function App() {
   }
 
   const userWallet = useEthersSigner();
+  const { userAddress } = useAccount();
 
   function getKernelAddress() {
     (async () => {
@@ -450,10 +448,12 @@ export function App() {
       const sessionKey = wallet.address;
       storage.setItem("ss_privkey", sessionKeyPriv);
       storage.setItem("ss_addr", sessionKey);
+      storage.setItem("ss_sigData", "");
 
       setSSKData({
         sessionKeyPriv: sessionKeyPriv,
         sessionKey: sessionKey,
+        sessionKeySigData: "",
       });
       setGeneratingSSK(false);
     })();
@@ -461,7 +461,7 @@ export function App() {
 
   function mintNFTBySessionKey() {
     (async () => {
-      setIsMinting2(true);
+      setIsMinting(true);
       let sessionKeyPriv = storage.getItem("ss_privkey");
       if (!sessionKeyPriv) {
         return;
@@ -516,6 +516,7 @@ export function App() {
           kernelImpl: kernelImpl,
           ECDSAValidator: ECDSAValidator,
           paymasterMiddleware: paymasterFn,
+          singer: userAddress,
         }
       );
 
@@ -623,7 +624,7 @@ export function App() {
         sessionKeySigData as Hex,
         encodedData,
       ]);
-console.log(2)
+
       const enableSigLength = enableSigData.length / 2 - 1;
       const enableDataLength = sessionKeyEnableData.length / 2 - 1;
 
@@ -652,13 +653,14 @@ console.log(2)
       const receipt = await res.wait();
       console.log(`receipt: ${receipt?.transactionHash}`);
 
-      setOpData2({
+      setOpData({
         sender: opTemp?.sender,
         paymaster: opTemp?.paymasterAndData,
         userOpHash: res.userOpHash,
         txHash: receipt?.transactionHash,
+        sessionKey: sessionKeyAddr,
       });
-      setIsMinting2(false);
+      setIsMinting(false);
     })();
   }
 
@@ -717,12 +719,15 @@ console.log(2)
             <section className="account-info">
               <h2>Generate a Session Key</h2>
               <div className="mint-section">
+                {isGeneratingSSK && (
+                  <div className="ProcessingMessage">Generating...</div>
+                )}
                 {
                   <button
                     className="mint-button"
                     type="submit"
                     onClick={() => generateSessionKey()}
-                    disabled={false}
+                    disabled={!aaAddress || isGeneratingSSK}
                   >
                     Generate a Session Key
                   </button>
@@ -760,7 +765,6 @@ console.log(2)
                     </div>
                   </div>
                 )}
-                {isGeneratingSSK && <div>Generating...</div>}
               </div>
             </section>
 
@@ -776,7 +780,7 @@ console.log(2)
                   <button
                     className="sign-button"
                     onClick={() => signSessionKey()}
-                    disabled={sskData.sessionKeySigData}
+                    disabled={sskData.sessionKeySigData || !sskData.sessionKey}
                   >
                     Sign it
                   </button>
@@ -788,38 +792,61 @@ console.log(2)
             <section className="account-info">
               <h2>Mint NFT by Session Key</h2>
               <div className="mint-section">
+                {isMinting && (
+                  <div className="ProcessingMessage">Minting...</div>
+                )}
                 {
                   <button
                     className="mint-button"
                     type="submit"
                     onClick={() => mintNFTBySessionKey()}
-                    disabled={false}
+                    disabled={isMinting || !sskData.sessionKeySigData}
                   >
                     Mint by Session Key
                   </button>
                 }
                 <br />
-                <br />
-                {opData2.sender && (
-                  <div className="privkey">
-                    <div className="privkey-content">
-                      <div>Sender: {opData2.sender}</div>
-                      <div>Paymaster: {opData2.paymaster}</div>
-                      <div>UserOpHash: {opData2.userOpHash}</div>
-                      <div>TxHash: {opData2.txHash}</div>
-                      <div>
-                        View on Explorer:{" "}
-                        <a
-                          href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/tx/${opData2.txHash}`}
-                          target="_blank"
-                        >
-                          Check it
-                        </a>
-                      </div>
+                {opData && opData.sender && !isMinting && (
+                  <div className="mint-success-data">
+                    <div className="mint-success-data-title">Sender:</div>
+                    <div className="mint-success-data-content">
+                      {opData.sender}
+                    </div>
+                    <div className="mint-success-data-title">Paymaster</div>
+                    <div className="mint-success-data-content">
+                      {opData?.paymaster?.substring(0, 42) ?? ""}
+                    </div>
+                    <div className="mint-success-data-title">Session Key</div>
+                    <div className="mint-success-data-content">
+                      {opData?.sessionKey}
+                    </div>
+                    <div className="mint-success-data-title">
+                      Operation Hash
+                    </div>
+                    <div className="mint-success-data-content">
+                      {opData.userOpHash}
+                    </div>
+                    <div className="mint-success-data-title">
+                      Transaction Hash
+                    </div>
+                    <div className="mint-success-data-content">
+                      {opData.txHash}
+                      <br />
+                      <br />
+                      <a
+                        href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/tx/${opData.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View on Etherscan
+                      </a>
                     </div>
                   </div>
                 )}
               </div>
+
+              <be />
+              <be />
             </section>
           </Connected>
         </main>
