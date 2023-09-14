@@ -221,6 +221,7 @@ a:hover {
   display: inline;
   margin-left: 10px;
   word-wrap: break-word;
+  max-width: 100%;
 }
 
 .mint-section,
@@ -241,7 +242,7 @@ a:hover {
 }
 
 .nft {
-  color: red;
+  color: blue;
   font-size: 200%;
 }
 
@@ -256,4 +257,16 @@ a:hover {
 .cname {
   font-weight: 600;
   color: #4db052;
+}
+
+.error-textarea {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%; 
+}
+.error-textarea textarea {
+  padding: 20px;        
+  border-radius: 10px;   
+  border: 1px solid #ccc; 
 }

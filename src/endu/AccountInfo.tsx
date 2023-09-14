@@ -35,8 +35,10 @@ export function AccountInfo(props) {
           {/* <h4>Abstract Account</h4> */}
           {props.aaAddress && (
             <div className="Account">
-              <p className="aa-address">Address: {props.aaAddress}</p>
-              <p className="aa-balance">
+              <br/>
+              <div>Address: {props.aaAddress}</div>
+              <br/>
+              <div>
                 {isSuccess && (
                   <div>
                     You have{" "}
@@ -44,8 +46,9 @@ export function AccountInfo(props) {
                     now
                   </div>
                 )}
-              </p>
-              <p className="aa-explorer-link">
+              </div>
+              <br/>
+              <div>
                 <a
                   href={`https://explorer-l2-op-endurance-testnet1.fusionist.io/address/${props.aaAddress}`}
                   target="_blank"
@@ -53,7 +56,7 @@ export function AccountInfo(props) {
                 >
                   View on Explorer
                 </a>
-              </p>
+              </div>
             </div>
           )}
           {!props.aaAddress && !props.isIniting && (

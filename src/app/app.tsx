@@ -68,7 +68,7 @@ import {
 import { OpToJSON } from "./src/utils";
 
 export function App() {
-  const { address: userAddress, connector, isConnected } = useAccount()
+  const { address: userAddress, connector, isConnected } = useAccount();
 
   const nodeRpcUrl = "https://rpc-l2-op-endurance-testnet1.fusionist.io/";
   const bundlerUrl = "https://test-bundler-gamewallet.fusionist.io/";
@@ -80,7 +80,6 @@ export function App() {
   const nftAddress = "0xf578642ff303398103930832B779cD35891eBa35";
 
   const opEnduChainId = 6480001000;
-
   const aaWalletSalt = "1";
 
   const kernelFactory = "0xA171f41588bA43666F4ee9F1f87C1D84f573d848";
@@ -90,43 +89,42 @@ export function App() {
   const SessionKeyOwnedValidator = "0x99D08AA79ea8BD6d127f51CF87ce0aD64643b854";
 
   const storage = localStorage;
-  const [privKey, setPrivkey] = useState("");
   const [aaAddress, setAAAddress] = useState("");
   const [isIniting, setIsIniting] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [opData, setOpData] = useState({});
-  const [showPrivKey, setShowPrivKey] = useState(false);
   const [sskData, setSSKData] = useState({});
   const [isGeneratingSSK, setGeneratingSSK] = useState(false);
 
-  let privKeyLocal = storage.getItem("aa_privkey");
-  useEffect(() => {
-    if (privKeyLocal) {
-      setPrivkey(privKeyLocal.toString());
-    }
-  }, [privKeyLocal]);
   let aaAddressLocal = storage.getItem("aa_address");
   useEffect(() => {
     if (aaAddressLocal) {
       setAAAddress(aaAddressLocal.toString());
     }
   }, [aaAddressLocal]);
+
   let sessionKeyPriv = storage.getItem("ss_privkey");
   let sessionKeyAddr = storage.getItem("ss_addr");
   let sessionKeySigData = storage.getItem("ss_sigData");
   let sessionKeyEnableData = storage.getItem("ss_enableData");
+  let sessionKeyValidAfter = storage.getItem("ss_validAfter");
+  let sessionKeyValidUntil = storage.getItem("ss_validUntil");
   useEffect(() => {
     if (
       sessionKeyAddr &&
       sessionKeyPriv &&
       sessionKeySigData &&
-      sessionKeyEnableData
+      sessionKeyEnableData &&
+      sessionKeyValidAfter &&
+      sessionKeyValidUntil
     ) {
       setSSKData({
         sessionKeyPriv: sessionKeyPriv,
         sessionKey: sessionKeyAddr,
         sessionKeySigData: sessionKeySigData,
         sessionKeyEnableData: sessionKeyEnableData,
+        ValidAfter: sessionKeyValidAfter,
+        ValidUntil: sessionKeyValidUntil,
       });
     } else {
       if (sessionKeyAddr && sessionKeyPriv) {
@@ -138,40 +136,17 @@ export function App() {
     }
   }, [sessionKeyPriv, sessionKeyAddr, sessionKeySigData, sessionKeyEnableData]);
 
-  const {
-    data: signature,
-    variables: sigVariables,
-    isLoading: sigIsloading,
-    signMessage,
-  } = useSignMessage();
-
-  useEffect(() => {
-    if (sigVariables?.message && signature) {
-      const privateKeyHex = signature.slice(0, 66);
-      setPrivkey(privateKeyHex);
-      storage.setItem("aa_privkey", privateKeyHex);
-      initAAAccount(
-        privateKeyHex,
-        bundlerUrl,
-        entryPoint,
-        kernelFactory,
-        setAAAddress,
-        storage,
-        true
-      );
-    }
-  }, [sigVariables, signature, storage, bundlerUrl, entryPoint, kernelFactory]);
-
   function clearSig() {
-    setPrivkey("");
     setAAAddress("");
     setSSKData({});
-    setOpData(null);
+    setOpData({});
     storage.setItem("aa_privkey", "");
     storage.setItem("aa_address", "");
     storage.setItem("ss_privkey", "");
     storage.setItem("ss_addr", "");
-    storage.setItem("ss_sigData", "");
+    storage.setItem("ss_enableData", "");
+    storage.setItem("ss_validAfter", "");
+    storage.setItem("ss_validUntil", "");
   }
 
   function walletClientToSigner(walletClient: WalletClient) {
@@ -247,11 +222,13 @@ export function App() {
 
   function signSessionKey() {
     (async () => {
-      const validAfter = 1594068745;
-      const validUntil = 1623012745;
+      const validAfter = 1;
+      let validUntil = 1623012745;
+      const ssk_validAfter = 1;
+      let ssk_validUntil = 1923012745;
 
-      const SvalidAfter = 1594068745;
-      const SvalidUntil = 1923012745;
+      validUntil = Math.floor(Date.now() / 1000);
+      ssk_validUntil = validUntil + 5 * 60;
 
       const sig = "0x00000000";
       const permissions: Permission[] = [
@@ -271,13 +248,11 @@ export function App() {
       ];
 
       const sessionKeyData = {
-        validAfter: SvalidAfter,
-        validUntil: SvalidUntil,
+        validAfter: ssk_validAfter,
+        validUntil: ssk_validUntil,
         permissions,
         paymaster: paymaster,
       };
-
-      const validatorMode = "0x00000002";
 
       function getMerkleTree(): MerkleTree {
         const permissionPacked = sessionKeyData.permissions?.map((permission) =>
@@ -374,71 +349,14 @@ export function App() {
         ...sskData,
         sessionKeySigData: enableSignature,
         sessionKeyEnableData: enableData,
+        ValidAfter: sessionKeyData.validAfter,
+        validUntil: sessionKeyData.validUntil,
       });
       storage.setItem("ss_sigData", enableSignature);
       storage.setItem("ss_enableData", enableData);
+      storage.setItem("ss_validAfter", validUntil.toString());
+      storage.setItem("ss_validUntil", ssk_validUntil.toString());
     })();
-  }
-
-  function initAAAccount(
-    privKey,
-    bundlerUrl,
-    entryPoint,
-    kernelFactory,
-    setAAAddress,
-    storage,
-    state
-  ) {
-    return new Promise(async (resolve, reject) => {
-      if (!privKey) {
-        reject("Private key is missing");
-        return;
-      }
-      if (state) {
-        setIsIniting(true);
-      }
-      try {
-        const provider = new BundlerJsonRpcProvider(nodeRpcUrl).setBundlerRpc(
-          bundlerUrl
-        );
-        const wallet = new ethers.Wallet(privKey, provider);
-        const kernel = await Presets.Builder.Kernel.init(wallet, nodeRpcUrl, {
-          entryPoint: entryPoint,
-          factory: kernelFactory,
-          salt: aaWalletSalt,
-          overrideBundlerRpc: bundlerUrl,
-        });
-
-        let address = kernel.getSender();
-
-        const client = await Client.init(nodeRpcUrl, {
-          entryPoint: entryPoint,
-          overrideBundlerRpc: bundlerUrl,
-        });
-        const call = {
-          to: address,
-          value: ethers.constants.Zero,
-          data: "0x",
-        };
-        let builder = kernel.execute(call).setPaymasterAndData(paymaster);
-
-        const res = await client.sendUserOperation(builder, {
-          onBuild: (op) => {
-            console.log(op);
-          },
-        });
-
-        setAAAddress(address);
-        storage.setItem("aa_address", address);
-        resolve(kernel);
-      } catch (error) {
-        console.error(error);
-        reject(error);
-      }
-      if (state) {
-        setIsIniting(false);
-      }
-    });
   }
 
   function generateSessionKey() {
@@ -455,6 +373,8 @@ export function App() {
         sessionKeyPriv: sessionKeyPriv,
         sessionKey: sessionKey,
         sessionKeySigData: "",
+        ValidAfter: 0,
+        validUntil: 0,
       });
       setGeneratingSSK(false);
     })();
@@ -471,12 +391,12 @@ export function App() {
       if (!sessionKeyAddr) {
         return;
       }
-      let enableSigData = storage.getItem("ss_sigData");
-      if (!enableSigData) {
-        return;
-      }
       let sessionKeyEnableData = storage.getItem("ss_enableData");
       if (!sessionKeyEnableData) {
+        return;
+      }
+      let enableSigData = storage.getItem("ss_sigData");
+      if (!enableSigData) {
         return;
       }
       let aaAddress = storage.getItem("aa_address");
@@ -496,10 +416,19 @@ export function App() {
 
       const validatorMode = "0x00000002";
 
-      const validAfter = 1594068745;
-      let validUntil = 1623012745;
-      const SvalidAfter = 1594068745;
-      let SvalidUntil = 1923012745;
+      const validAfter = 1;
+      const validUntilStr = storage.getItem("ss_validAfter");
+      if (!validUntilStr) {
+        return;
+      }
+      const validUntil = parseInt(validUntilStr.toString(), 10);
+      const ssk_validAfter = 1;
+      let ssk_validUntilStr = storage.getItem("ss_validUntil");
+      if (!ssk_validUntilStr) {
+        return;
+      }
+      const ssk_validUntil = parseInt(ssk_validUntilStr.toString(), 10);
+      console.log("validUntil:", validUntil, "ssk_validUntil:", ssk_validUntil);
 
       const provider = new BundlerJsonRpcProvider(nodeRpcUrl).setBundlerRpc(
         bundlerUrl
@@ -574,8 +503,8 @@ export function App() {
       ];
 
       const sessionKeyData = {
-        validAfter: SvalidAfter,
-        validUntil: SvalidUntil,
+        validAfter: ssk_validAfter,
+        validUntil: ssk_validUntil,
         permissions,
         paymaster: paymaster,
       };
@@ -644,11 +573,28 @@ export function App() {
 
       userOp.signature = signature;
       let opTemp = null;
-      const res = await client.sendUserOperationOnly(builder, userOp, {
-        onBuild: (op) => {
-          opTemp = op;
-        },
-      });
+      let res;
+      try {
+        res = await client.sendUserOperationOnly(builder, userOp, {
+          onBuild: (op) => {
+            opTemp = op;
+          },
+        });
+      } catch (error) {
+        const errorMessage = error.message;
+        const errorCode = error.code;
+        const requestBody = error.requestBody;
+        const requestMethod = error.requestMethod;
+        const url = error.url;
+        const version = error.version;
+
+        const jsonBody = errorMessage.match(/body="({.*})"/)[1];
+        setOpData({
+          error: jsonBody
+        });
+        setIsMinting(false);
+        return;
+      }
       console.log(`UserOpHash: ${res.userOpHash}`);
 
       const receipt = await res.wait();
@@ -762,6 +708,38 @@ export function App() {
                             <span className="red">Not signed yet</span>
                           )}
                         </div>
+                        <div className="mint-success-data-title">
+                          Valid After
+                        </div>
+                        <div className="mint-success-data-content">
+                          {sskData.sessionKeySigData && (
+                            <span>
+                              {new Date(
+                                sskData.ValidAfter * 1000
+                              ).toLocaleString()}
+                              {/* {sskData.ValidAfter} */}
+                            </span>
+                          )}
+                          {!sskData.sessionKeySigData && (
+                            <span className="red">Not signed yet</span>
+                          )}
+                        </div>
+                        <div className="mint-success-data-title">
+                          Valid Until
+                        </div>
+                        <div className="mint-success-data-content">
+                          {sskData.sessionKeySigData && (
+                            <span>
+                              {new Date(
+                                sskData.ValidUntil * 1000
+                              ).toLocaleString()}
+                              {/* {sskData.ValidUntil} */}
+                            </span>
+                          )}
+                          {!sskData.sessionKeySigData && (
+                            <span className="red">Not signed yet</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -793,9 +771,6 @@ export function App() {
             <section className="account-info">
               <h2>Mint NFT by Session Key</h2>
               <div className="mint-section">
-                {isMinting && (
-                  <div className="ProcessingMessage">Minting...</div>
-                )}
                 {
                   <button
                     className="mint-button"
@@ -807,7 +782,13 @@ export function App() {
                   </button>
                 }
                 <br />
-                {opData && opData.sender && !isMinting && (
+                {opData.sender && !isMinting && !opData.error && (
+                  <div className="ConfirmationMessage">
+                    Mint NFT successfully
+                  </div>
+                )}
+                <br />
+                {opData && opData.sender && !isMinting && !opData.error && (
                   <div className="mint-success-data">
                     <div className="mint-success-data-title">Sender:</div>
                     <div className="mint-success-data-content">
@@ -841,6 +822,28 @@ export function App() {
                       >
                         View on Etherscan
                       </a>
+                    </div>
+                  </div>
+                )}
+                {isMinting && (
+                  <div className="ProcessingMessage">Minting...</div>
+                )}
+               
+                {!isMinting && opData.error && (
+                  <div className="ErrorNotification">Mint NFT failed</div>
+                )}
+                {!isMinting && opData.error && (
+                  <div className="mint-success-data">
+                    <div className="mint-success-data-title">Error message:</div>
+                    <br/>
+                    <div className="mint-success-data-content error-textarea" 
+                    >
+                      {/* {opData?.error} */}
+                      <textarea
+                        value={opData?.error}
+                        rows="10"
+                        cols="100"
+                      ></textarea>
                     </div>
                   </div>
                 )}
