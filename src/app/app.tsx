@@ -85,7 +85,7 @@ export function App() {
   const kernelFactory = "0xA171f41588bA43666F4ee9F1f87C1D84f573d848";
   const kernelImpl = "0x3FEf6c193e5632d6fd65Da1bC82d34EDc33Cd251";
   const ECDSAValidator = "0xBdD707ac36bC0176464292D03f4fAA1bf5fBCeba";
-  const SessionKeyExecValidator = "0xFc3D30e186f622512b7d124C1B69D9f100215016";
+  const SessionKeyExecValidator = "0x75Fb570b6e16D6cA61C733E629c297E863F24076";
   const SessionKeyOwnedValidator = "0x99D08AA79ea8BD6d127f51CF87ce0aD64643b854";
 
   const storage = localStorage;
@@ -230,10 +230,10 @@ export function App() {
       validUntil = Math.floor(Date.now() / 1000);
       ssk_validUntil = validUntil + 5 * 60;
 
-      const sig = "0x00000000";
+      const sig = getFunctionSelector("safeMint(address)")
       const permissions: Permission[] = [
         {
-          target: aaAddress as Hex,
+          target: nftAddress as Hex,
           valueLimit: 0,
           sig: sig,
           operation: Operation.Call,
@@ -331,7 +331,7 @@ export function App() {
           concatHex([
             pad(toHex(validUntil), { size: 6 }),
             pad(toHex(validAfter), { size: 6 }),
-            SessionKeyOwnedValidator,
+            SessionKeyExecValidator,
           ]),
           { size: 32 }
         ),
@@ -485,10 +485,10 @@ export function App() {
 
       const sessionKeyWallet = new ethers.Wallet(sessionKeyPriv, provider);
 
-      const sig = "0x00000000";
+      const sig = getFunctionSelector("safeMint(address)")
       const permissions: Permission[] = [
         {
-          target: aaAddress as Hex,
+          target: nftAddress as Hex,
           valueLimit: 0,
           sig: sig,
           operation: Operation.Call,
@@ -562,7 +562,7 @@ export function App() {
         validatorMode,
         pad(toHex(validUntil), { size: 6 }), // 6 bytes 4 - 10
         pad(toHex(validAfter), { size: 6 }), // 6 bytes 10 - 16
-        pad(SessionKeyOwnedValidator, { size: 20 }), // 20 bytes 16 - 36
+        pad(SessionKeyExecValidator, { size: 20 }), // 20 bytes 16 - 36
         pad(aaAddress as Hex, { size: 20 }), // 20 bytes 36 - 56
         pad(toHex(enableDataLength), { size: 32 }),
         sessionKeyEnableData as Hex,
