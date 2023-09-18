@@ -1,7 +1,7 @@
 import { Providers } from './providers'
 
 export const metadata = {
-  title: 'wagmi',
+  title: 'Op-Endu AA Wallet Demo',
 }
 
 export default function RootLayout({
